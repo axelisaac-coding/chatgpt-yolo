@@ -12,7 +12,17 @@
   const GOAL_MAX_ITERATIONS = 0;
   const WORKFLOW_SCHEMA_VERSION = 4;
   const SUPERVISOR_LIMITS = Object.freeze({ repeatedResponses: 2, noProgressResponses: 3, recoveryAttempts: 3, verificationAttempts: 2 });
-  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "rate_limited", "human_required", "rollover_required", "completed", "blocked"]);
+  const PROACTIVE_ROLLOVER_LIMITS = Object.freeze({
+    minContinuations: 80,
+    minMessages: 100,
+    minVisibleTextChars: 180000,
+    highMessages: 160,
+    highVisibleTextChars: 320000,
+    highContinuations: 140,
+    maxAttemptsPerGeneration: 2,
+    retryCooldownMs: 10 * 60 * 1000
+  });
+  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "rate_limited", "human_required", "rollover_pending", "rollover_required", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
   const TERMINAL_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
@@ -309,10 +319,33 @@
   function workflowPhase(raw) {
     const workflow = normalizeWorkflow(raw);
     if (workflow.status === "idle") return "idle";
-    if (workflow.status === "rollover_required") return "rollover";
+    if (["rollover_pending", "rollover_required"].includes(workflow.status)) return "rollover";
     if (workflow.supervisor.verificationPending) return "verification";
     if (workflow.supervisor.recoveryAttempts > 0 || workflow.supervisor.recoveryReason) return "recovery";
     return "work";
+  }
+
+  function proactiveRolloverEvidence(rawWorkflow, growth = {}) {
+    const workflow = normalizeWorkflow(rawWorkflow);
+    const totalMessages = Math.max(0, Math.round(finite(growth.totalMessages, 0)));
+    const visibleTextChars = Math.max(0, Math.round(finite(growth.visibleTextChars, 0)));
+    const continuations = Math.max(0, workflow.iteration);
+    const metrics = { totalMessages, visibleTextChars, continuations };
+    if (workflow.kind !== "goal" || workflow.status !== "running" || workflow.supervisor.verificationPending || workflow.supervisor.recoveryAttempts > 0) {
+      return { triggered: false, code: "supervisor.rollover.proactive.ineligible", reason: "Workflow is not at a productive Goal boundary", metrics };
+    }
+    let signal = "";
+    if (continuations >= PROACTIVE_ROLLOVER_LIMITS.highContinuations) signal = "durable_continuations";
+    else if (visibleTextChars >= PROACTIVE_ROLLOVER_LIMITS.highVisibleTextChars && totalMessages >= 40) signal = "text_volume";
+    else if (visibleTextChars >= PROACTIVE_ROLLOVER_LIMITS.minVisibleTextChars && totalMessages >= PROACTIVE_ROLLOVER_LIMITS.highMessages) signal = "message_volume";
+    else if (visibleTextChars >= PROACTIVE_ROLLOVER_LIMITS.minVisibleTextChars && totalMessages >= PROACTIVE_ROLLOVER_LIMITS.minMessages && continuations >= PROACTIVE_ROLLOVER_LIMITS.minContinuations) signal = "sustained_goal";
+    if (!signal) return { triggered: false, code: "supervisor.rollover.proactive.below_threshold", reason: "Observable conversation growth remains below proactive rollover thresholds", metrics };
+    return {
+      triggered: true,
+      code: "supervisor.rollover.proactive." + signal,
+      reason: "Observable conversation growth threshold reached; prepare a verified rollover before a hard limit",
+      metrics
+    };
   }
 
   function workflowIterationLabel(raw) {
@@ -607,6 +640,7 @@
     GOAL_MAX_ITERATIONS,
     WORKFLOW_SCHEMA_VERSION,
     SUPERVISOR_LIMITS,
+    PROACTIVE_ROLLOVER_LIMITS,
     freshSupervisorState,
     normalizeSupervisorState,
     observeSupervisorState,
@@ -622,6 +656,7 @@
     setWorkflowStatus,
     workflowPhase,
     workflowIterationLabel,
+    proactiveRolloverEvidence,
     workflowPrompt,
     evaluateResponse,
     evaluateProgress,

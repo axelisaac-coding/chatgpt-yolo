@@ -7,7 +7,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, (Shared, Commands) => {
   "use strict";
 
-  const PROJECT_SCHEMA_VERSION = 3;
+  const PROJECT_SCHEMA_VERSION = 4;
   const MAX_PROJECTS = 100;
   const MAX_CONVERSATIONS = 64;
   const PROJECT_STATUSES = new Set(["active", "rollover_required", "rolling_over", "completed", "stopped"]);
@@ -15,6 +15,8 @@
   const ROLLOVER_STAGES = new Set(["idle", "required", "handoff_pending", "handoff_ready", "successor_pending", "bootstrap_pending", "successor_bound", "resuming", "complete", "failed"]);
   const ROLLOVER_LEASE_MS = 2 * 60 * 1000;
   const BOOTSTRAP_STATES = new Set(["idle", "prepared", "submitting", "observed", "verified", "delivery_unknown"]);
+  const ROLLOVER_MODES = new Set(["idle", "hard", "proactive"]);
+  const HANDOFF_ACTIONS = new Set(["idle", "generate", "verify"]);
   const MAX_HANDOFF_LENGTH = 6000;
   const MAX_BOOTSTRAP_LENGTH = 30000;
   const cleanText = (value, max = 4000) => String(value ?? "").trim().slice(0, max);
@@ -38,7 +40,8 @@
   function normalizeConversation(raw = {}, at = Date.now()) {
     const fallback = freshConversation(raw?.pageId, raw?.generation, at);
     const status = CONVERSATION_STATUSES.has(raw?.status) ? raw.status : fallback.status;
-    const exhausted = status === "exhausted" || Boolean(raw?.doNotContinue);
+    const exhausted = status === "exhausted" || (status === "active" && Boolean(raw?.doNotContinue));
+    const inert = exhausted || Boolean(raw?.doNotContinue);
     return {
       generation: Math.max(1, Math.round(finite(raw?.generation, fallback.generation))),
       pageId: cleanText(raw?.pageId, 1000),
@@ -50,7 +53,7 @@
       lastVerifiedCheckpoint: cleanText(raw?.lastVerifiedCheckpoint, 180),
       finalPromptFingerprint: cleanText(raw?.finalPromptFingerprint, 180),
       finalAssistantFingerprint: cleanText(raw?.finalAssistantFingerprint, 180),
-      doNotContinue: exhausted
+      doNotContinue: inert
     };
   }
 
@@ -73,13 +76,14 @@
   }
 
   function freshRollover() {
-    return { stage: "idle", sourcePageId: "", reason: "", ownerId: "", leaseToken: "", leaseExpiresAt: 0, startedAt: 0, updatedAt: 0, handoffSource: "", handoffFingerprint: "", successorPageId: "", newChatRequestedAt: 0, newChatOpeningAt: 0, bootstrapText: "", bootstrapFingerprint: "", bootstrapToken: "", bootstrapState: "idle", bootstrapSubmittedAt: 0, bootstrapObservedAt: 0, bootstrapVerifiedAt: 0, error: "" };
+    return { stage: "idle", mode: "idle", sourcePageId: "", reason: "", ownerId: "", leaseToken: "", leaseExpiresAt: 0, startedAt: 0, updatedAt: 0, proactiveAttempts: 0, proactiveLastAttemptAt: 0, proactiveEvidenceCode: "", proactiveEvidenceMessages: 0, proactiveEvidenceChars: 0, proactiveEvidenceContinuations: 0, handoffSource: "", handoffFingerprint: "", handoffAction: "idle", handoffPromptText: "", handoffPromptFingerprint: "", handoffBaselineAssistantFingerprint: "", handoffBaselineUserFingerprint: "", handoffPromptPreparedAt: 0, successorPageId: "", newChatRequestedAt: 0, newChatOpeningAt: 0, bootstrapText: "", bootstrapFingerprint: "", bootstrapToken: "", bootstrapState: "idle", bootstrapSubmittedAt: 0, bootstrapObservedAt: 0, bootstrapVerifiedAt: 0, error: "" };
   }
 
   function normalizeRollover(raw = {}) {
     const rollover = raw && typeof raw === "object" ? raw : {};
     return {
       stage: ROLLOVER_STAGES.has(rollover.stage) ? rollover.stage : "idle",
+      mode: ROLLOVER_MODES.has(rollover.mode) ? rollover.mode : (rollover.sourcePageId ? "hard" : "idle"),
       sourcePageId: cleanText(rollover.sourcePageId, 1000),
       reason: cleanText(rollover.reason, 500),
       ownerId: cleanText(rollover.ownerId, 220),
@@ -87,8 +91,20 @@
       leaseExpiresAt: Math.max(0, finite(rollover.leaseExpiresAt, 0)),
       startedAt: Math.max(0, finite(rollover.startedAt, 0)),
       updatedAt: Math.max(0, finite(rollover.updatedAt, 0)),
+      proactiveAttempts: Math.max(0, Math.round(finite(rollover.proactiveAttempts, 0))),
+      proactiveLastAttemptAt: Math.max(0, finite(rollover.proactiveLastAttemptAt, 0)),
+      proactiveEvidenceCode: cleanText(rollover.proactiveEvidenceCode, 120),
+      proactiveEvidenceMessages: Math.max(0, Math.round(finite(rollover.proactiveEvidenceMessages, 0))),
+      proactiveEvidenceChars: Math.max(0, Math.round(finite(rollover.proactiveEvidenceChars, 0))),
+      proactiveEvidenceContinuations: Math.max(0, Math.round(finite(rollover.proactiveEvidenceContinuations, 0))),
       handoffSource: cleanText(rollover.handoffSource, 80),
       handoffFingerprint: cleanText(rollover.handoffFingerprint, 180),
+      handoffAction: HANDOFF_ACTIONS.has(rollover.handoffAction) ? rollover.handoffAction : "idle",
+      handoffPromptText: cleanText(rollover.handoffPromptText, MAX_BOOTSTRAP_LENGTH),
+      handoffPromptFingerprint: cleanText(rollover.handoffPromptFingerprint, 180),
+      handoffBaselineAssistantFingerprint: cleanText(rollover.handoffBaselineAssistantFingerprint, 180),
+      handoffBaselineUserFingerprint: cleanText(rollover.handoffBaselineUserFingerprint, 180),
+      handoffPromptPreparedAt: Math.max(0, finite(rollover.handoffPromptPreparedAt, 0)),
       successorPageId: cleanText(rollover.successorPageId, 1000),
       newChatRequestedAt: Math.max(0, finite(rollover.newChatRequestedAt, 0)),
       newChatOpeningAt: Math.max(0, finite(rollover.newChatOpeningAt, 0)),
@@ -210,7 +226,8 @@
     project.currentConversationId = pageId;
     const priorRollover = normalizeRollover(project.rollover);
     const rollover = priorRollover.sourcePageId && priorRollover.sourcePageId !== pageId ? freshRollover() : priorRollover;
-    project.rollover = { ...rollover, stage: rollover.stage === "idle" ? "required" : rollover.stage, sourcePageId: pageId, reason: entry.rolloverReason, startedAt: rollover.startedAt || at, updatedAt: at, error: "" };
+    const retainAdvancedStage = ["handoff_ready", "successor_pending", "bootstrap_pending", "successor_bound", "resuming"].includes(rollover.stage);
+    project.rollover = { ...rollover, mode: "hard", stage: retainAdvancedStage ? rollover.stage : "required", sourcePageId: pageId, reason: entry.rolloverReason, handoffAction: retainAdvancedStage ? rollover.handoffAction : "idle", handoffPromptText: retainAdvancedStage ? rollover.handoffPromptText : "", handoffPromptFingerprint: retainAdvancedStage ? rollover.handoffPromptFingerprint : "", handoffBaselineAssistantFingerprint: retainAdvancedStage ? rollover.handoffBaselineAssistantFingerprint : "", handoffBaselineUserFingerprint: retainAdvancedStage ? rollover.handoffBaselineUserFingerprint : "", handoffPromptPreparedAt: retainAdvancedStage ? rollover.handoffPromptPreparedAt : 0, startedAt: rollover.startedAt || at, updatedAt: at, error: "" };
     project.supervisor = Commands.normalizeSupervisorState(workflow.supervisor || project.supervisor);
     const checkpoint = cleanText(project.supervisor.lastProgressFingerprint, 180);
     if (checkpoint) project.latestVerifiedCheckpoint = { id: checkpoint, at: project.supervisor.lastProgressAt || at };
@@ -309,6 +326,67 @@
     return { ok: true, project: normalizeProject(project, project.id, at) };
   }
 
+  function planProactiveRollover(rawProject, pageId, { workflow = {}, growth = {}, at = Date.now() } = {}) {
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    const page = cleanText(pageId, 1000);
+    const activeWorkflow = Commands.normalizeWorkflow(workflow, at);
+    const evidence = Commands.proactiveRolloverEvidence(activeWorkflow, growth);
+    if (!evidence.triggered) return { ok: false, code: evidence.code, reason: evidence.reason, project, evidence };
+    if (project.status !== "active" || project.currentConversationId !== page) return { ok: false, code: "project.proactive_not_active", reason: "Project is not active in this conversation", project, evidence };
+    const source = project.conversationChain.find((entry) => entry.pageId === page);
+    if (!source || source.doNotContinue) return { ok: false, code: "project.proactive_source_inert", reason: "Source conversation is not eligible for proactive rollover", project, evidence };
+    const prior = normalizeRollover(project.rollover);
+    const sameGenerationAttempt = prior.mode === "proactive" && prior.sourcePageId === page;
+    const attempts = sameGenerationAttempt ? prior.proactiveAttempts : 0;
+    const lastAttemptAt = sameGenerationAttempt ? prior.proactiveLastAttemptAt : 0;
+    const limits = Commands.PROACTIVE_ROLLOVER_LIMITS;
+    if (attempts >= limits.maxAttemptsPerGeneration) return { ok: false, code: "project.proactive_attempt_limit", reason: "Proactive rollover attempt limit reached for this conversation", project, evidence };
+    if (lastAttemptAt && at - lastAttemptAt < limits.retryCooldownMs) return { ok: false, code: "project.proactive_cooldown", reason: "Proactive rollover retry cooldown is active", project, evidence };
+    const rollover = freshRollover();
+    project.status = "rollover_required";
+    project.rollover = { ...rollover, mode: "proactive", stage: "required", sourcePageId: page, reason: cleanText(evidence.reason, 500), startedAt: at, updatedAt: at, proactiveAttempts: attempts + 1, proactiveLastAttemptAt: at, proactiveEvidenceCode: cleanText(evidence.code, 120), proactiveEvidenceMessages: evidence.metrics.totalMessages, proactiveEvidenceChars: evidence.metrics.visibleTextChars, proactiveEvidenceContinuations: evidence.metrics.continuations };
+    project.supervisor = Commands.normalizeSupervisorState(activeWorkflow.supervisor || project.supervisor);
+    const checkpoint = cleanText(project.supervisor.lastProgressFingerprint, 180);
+    if (checkpoint) project.latestVerifiedCheckpoint = { id: checkpoint, at: project.supervisor.lastProgressAt || at };
+    project.revision += 1; project.updatedAt = at;
+    return { ok: true, code: "project.proactive_planned", project: normalizeProject(project, project.id, at), evidence };
+  }
+
+  function prepareProactiveHandoffGeneration(rawProject, { ownerId = "", leaseToken = "", baselineAssistantFingerprint = "", baselineUserFingerprint = "", at = Date.now() } = {}) {
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.mode !== "proactive" || project.rollover.stage !== "required") return { ok: false, code: "project.proactive_handoff_stage_invalid", reason: "Proactive handoff generation is not ready", project };
+    const prompt = cleanText(handoffGenerationPrompt(project), MAX_BOOTSTRAP_LENGTH);
+    project.rollover = { ...project.rollover, stage: "handoff_pending", handoffAction: "generate", handoffPromptText: prompt, handoffPromptFingerprint: Commands.fingerprint(prompt), handoffBaselineAssistantFingerprint: cleanText(baselineAssistantFingerprint, 180), handoffBaselineUserFingerprint: cleanText(baselineUserFingerprint, 180), handoffPromptPreparedAt: at, updatedAt: at, error: "" };
+    project.revision += 1; project.updatedAt = at;
+    return { ok: true, code: "project.proactive_handoff_generation_prepared", project: normalizeProject(project, project.id, at) };
+  }
+
+
+  function prepareProactiveHandoffVerification(rawProject, { ownerId = "", leaseToken = "", baselineAssistantFingerprint = "", baselineUserFingerprint = "", at = Date.now() } = {}) {
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    const handoff = normalizeHandoff(project.latestHandoff);
+    if (project.rollover.mode !== "proactive" || project.rollover.stage !== "handoff_pending" || project.rollover.handoffAction !== "idle" || !handoff.text || handoff.verified) return { ok: false, code: "project.proactive_verification_stage_invalid", reason: "Proactive handoff verification is not ready", project };
+    const prompt = cleanText(handoffVerificationPrompt(project), MAX_BOOTSTRAP_LENGTH);
+    project.rollover = { ...project.rollover, handoffAction: "verify", handoffPromptText: prompt, handoffPromptFingerprint: Commands.fingerprint(prompt), handoffBaselineAssistantFingerprint: cleanText(baselineAssistantFingerprint, 180), handoffBaselineUserFingerprint: cleanText(baselineUserFingerprint, 180), handoffPromptPreparedAt: at, updatedAt: at, error: "" };
+    project.revision += 1; project.updatedAt = at;
+    return { ok: true, code: "project.proactive_handoff_verification_prepared", project: normalizeProject(project, project.id, at) };
+  }
+
+  function cancelProactiveRollover(rawProject, { ownerId = "", leaseToken = "", reason = "Proactive rollover aborted before navigation", at = Date.now() } = {}) {
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    const rollover = normalizeRollover(project.rollover);
+    const source = project.conversationChain.find((entry) => entry.pageId === rollover.sourcePageId);
+    const unsafeStage = ["successor_pending", "bootstrap_pending", "successor_bound", "resuming", "complete"].includes(rollover.stage);
+    if (rollover.mode !== "proactive" || source?.doNotContinue || rollover.newChatOpeningAt || rollover.successorPageId || unsafeStage) return { ok: false, code: "project.proactive_abort_unsafe", reason: "Proactive rollover can no longer be safely aborted", project };
+    project.status = "active";
+    project.rollover = { ...rollover, stage: "failed", ownerId: "", leaseToken: "", leaseExpiresAt: 0, handoffAction: "idle", handoffPromptText: "", handoffPromptFingerprint: "", handoffBaselineAssistantFingerprint: "", handoffBaselineUserFingerprint: "", handoffPromptPreparedAt: 0, error: cleanText(reason, 500), updatedAt: at };
+    project.revision += 1; project.updatedAt = at;
+    return { ok: true, code: "project.proactive_aborted", project: normalizeProject(project, project.id, at) };
+  }
+
   const ROLLOVER_TRANSITIONS = Object.freeze({
     required: new Set(["handoff_pending", "handoff_ready", "failed"]),
     handoff_pending: new Set(["handoff_ready", "required", "failed"]),
@@ -355,7 +433,7 @@
     if (!parsed.ok) return { ...parsed, project };
     if (!["required", "handoff_pending"].includes(project.rollover.stage)) return { ok: false, code: "project.handoff_stage_invalid", reason: "Rollover is not accepting a handoff candidate", project };
     project.latestHandoff = { text: parsed.text, verified: false, fingerprint: parsed.fingerprint, sourcePageId: project.rollover.sourcePageId || project.currentConversationId, generation: project.currentGeneration, basisCheckpointId: project.latestVerifiedCheckpoint.id, at, verifiedAt: 0 };
-    project.rollover = { ...project.rollover, stage: "handoff_pending", handoffFingerprint: parsed.fingerprint, handoffSource: "fresh_candidate", updatedAt: at, error: "" };
+    project.rollover = { ...project.rollover, stage: "handoff_pending", handoffFingerprint: parsed.fingerprint, handoffSource: "fresh_candidate", handoffAction: "idle", handoffPromptText: "", handoffPromptFingerprint: "", handoffBaselineAssistantFingerprint: "", handoffBaselineUserFingerprint: "", handoffPromptPreparedAt: 0, updatedAt: at, error: "" };
     project.revision += 1;
     project.updatedAt = at;
     return { ok: true, code: "project.handoff_saved", project: normalizeProject(project, project.id, at), fingerprint: parsed.fingerprint };
@@ -384,7 +462,7 @@
     const result = evaluateHandoffVerification(verificationText, handoff.fingerprint);
     if (result.kind !== "verified") return { ok: false, code: "project.handoff_" + result.kind, reason: "Handoff verification was " + result.kind, project, verification: result };
     project.latestHandoff = { ...handoff, verified: true, verifiedAt: at };
-    project.rollover = { ...project.rollover, stage: "handoff_ready", handoffSource: "verified_handoff", handoffFingerprint: handoff.fingerprint, updatedAt: at, error: "" };
+    project.rollover = { ...project.rollover, stage: "handoff_ready", handoffSource: "verified_handoff", handoffFingerprint: handoff.fingerprint, handoffAction: "idle", handoffPromptText: "", handoffPromptFingerprint: "", handoffBaselineAssistantFingerprint: "", handoffBaselineUserFingerprint: "", handoffPromptPreparedAt: 0, updatedAt: at, error: "" };
     project.revision += 1;
     project.updatedAt = at;
     return { ok: true, code: "project.handoff_verified", project: normalizeProject(project, project.id, at), verification: result };
@@ -403,7 +481,7 @@
     if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
     if (!["required", "handoff_pending"].includes(project.rollover.stage)) return { ok: false, code: "project.rollover_fallback_stage_invalid", reason: "Rollover fallback is not valid in this stage", project };
     const fallback = selectRolloverFallback(project);
-    project.rollover = { ...project.rollover, stage: "handoff_ready", handoffSource: fallback.kind, handoffFingerprint: fallback.handoff.fingerprint || "", updatedAt: at, error: "" };
+    project.rollover = { ...project.rollover, stage: "handoff_ready", handoffSource: fallback.kind, handoffFingerprint: fallback.handoff.fingerprint || "", handoffAction: "idle", handoffPromptText: "", handoffPromptFingerprint: "", handoffBaselineAssistantFingerprint: "", handoffBaselineUserFingerprint: "", handoffPromptPreparedAt: 0, updatedAt: at, error: "" };
     project.revision += 1;
     project.updatedAt = at;
     return { ok: true, code: "project.rollover_fallback_ready", project: normalizeProject(project, project.id, at), fallback };
@@ -494,6 +572,8 @@
     if (project.rollover.stage !== "bootstrap_pending" || project.rollover.bootstrapState !== "prepared") return { ok: false, code: "project.new_chat_stage_invalid", reason: "New Chat navigation is not ready", project };
     if (project.rollover.successorPageId) return { ok: false, code: "project.successor_already_known", reason: "Successor conversation already exists", project };
     if (project.rollover.newChatOpeningAt) return { ok: true, code: "project.new_chat_opening", project, alreadyMarked: true };
+    const source = project.conversationChain.find((entry) => entry.pageId === project.rollover.sourcePageId);
+    if (source && !source.doNotContinue) { source.doNotContinue = true; source.status = project.rollover.mode === "hard" ? "exhausted" : "rolling_over"; source.endedAt = at; source.rolloverReason = source.rolloverReason || project.rollover.reason; source.finalPromptFingerprint = cleanText(options.finalPromptFingerprint || source.finalPromptFingerprint, 180); source.finalAssistantFingerprint = cleanText(options.finalAssistantFingerprint || source.finalAssistantFingerprint, 180); source.lastVerifiedCheckpoint = cleanText(options.lastVerifiedCheckpoint || source.lastVerifiedCheckpoint, 180); }
     project.rollover = { ...project.rollover, newChatOpeningAt: at, updatedAt: at, error: "" };
     project.revision += 1; project.updatedAt = at;
     return { ok: true, code: "project.new_chat_opening", project: normalizeProject(project, project.id, at), alreadyMarked: false };
@@ -569,7 +649,7 @@
     const successor = project.rollover.successorPageId;
     const nextGeneration = project.currentGeneration + 1;
     const sourceEntry = project.conversationChain.find((entry) => entry.pageId === project.rollover.sourcePageId);
-    if (sourceEntry) sourceEntry.successorPageId = successor;
+    if (sourceEntry) { sourceEntry.successorPageId = successor; sourceEntry.doNotContinue = true; if (sourceEntry.status === "active") sourceEntry.status = "rolling_over"; sourceEntry.endedAt = sourceEntry.endedAt || at; }
     project.conversationChain.push(freshConversation(successor, nextGeneration, at));
     project.currentConversationId = successor;
     project.currentGeneration = nextGeneration;
@@ -617,6 +697,8 @@
     ROLLOVER_LEASE_MS,
     ROLLOVER_STAGES,
     BOOTSTRAP_STATES,
+    ROLLOVER_MODES,
+    HANDOFF_ACTIONS,
     freshHandoff,
     normalizeHandoff,
     freshRollover,
@@ -635,6 +717,10 @@
     rolloverLeaseActive,
     claimRollover,
     releaseRollover,
+    planProactiveRollover,
+    prepareProactiveHandoffGeneration,
+    prepareProactiveHandoffVerification,
+    cancelProactiveRollover,
     advanceRollover,
     parseHandoffCandidate,
     saveHandoffCandidate,

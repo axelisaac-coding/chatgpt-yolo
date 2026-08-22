@@ -494,3 +494,40 @@ test("rollover-required goal state is durable, project-linked, and not reported 
   assert.equal(workflow.status, "rollover_required");
   assert.equal(Commands.workflowPhase(workflow), "rollover");
 });
+
+test("proactive rollover uses observable growth rather than invented context percentages", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "long project", status: "running", iteration: 85 });
+  let evidence = Commands.proactiveRolloverEvidence(workflow, { totalMessages: 90, visibleTextChars: 170000 });
+  assert.equal(evidence.triggered, false);
+  evidence = Commands.proactiveRolloverEvidence(workflow, { totalMessages: 120, visibleTextChars: 200000 });
+  assert.equal(evidence.triggered, true);
+  assert.equal(evidence.code, "supervisor.rollover.proactive.sustained_goal");
+  assert.deepEqual(evidence.metrics, { totalMessages: 120, visibleTextChars: 200000, continuations: 85 });
+});
+
+test("proactive rollover can trigger from exceptional visible text volume without claiming context occupancy", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "large source", status: "running", iteration: 20 });
+  const evidence = Commands.proactiveRolloverEvidence(workflow, { totalMessages: 48, visibleTextChars: 360000 });
+  assert.equal(evidence.triggered, true);
+  assert.equal(evidence.code, "supervisor.rollover.proactive.text_volume");
+  assert.doesNotMatch(evidence.reason, /percent|remaining context|tokens left/i);
+});
+
+test("non-Goal and recovery or verification states cannot trigger proactive rollover", () => {
+  const loop = Commands.normalizeWorkflow({ kind: "loop", objective: "bounded", status: "running", iteration: 45 });
+  assert.equal(Commands.proactiveRolloverEvidence(loop, { totalMessages: 200, visibleTextChars: 500000 }).triggered, false);
+  const goal = Commands.normalizeWorkflow({ kind: "goal", objective: "recovering", status: "running", iteration: 100, supervisor: { recoveryAttempts: 1 } });
+  assert.equal(Commands.proactiveRolloverEvidence(goal, { totalMessages: 200, visibleTextChars: 500000 }).triggered, false);
+  goal.supervisor.recoveryAttempts = 0;
+  goal.supervisor.verificationPending = true;
+  assert.equal(Commands.proactiveRolloverEvidence(goal, { totalMessages: 200, visibleTextChars: 500000 }).triggered, false);
+});
+
+
+test("durable continuation count still triggers proactive rollover when old DOM messages are virtualized", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "very long project", status: "running", iteration: 145 });
+  const evidence = Commands.proactiveRolloverEvidence(workflow, { totalMessages: 18, visibleTextChars: 24000 });
+  assert.equal(evidence.triggered, true);
+  assert.equal(evidence.code, "supervisor.rollover.proactive.durable_continuations");
+  assert.equal(evidence.metrics.continuations, 145);
+});

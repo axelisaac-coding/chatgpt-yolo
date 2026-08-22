@@ -145,7 +145,7 @@
   }
 
   function shouldProtectTab({ enabled = false, workflowStatus = "idle" } = {}) {
-    return Boolean(enabled && workflowStatus === "running");
+    return Boolean(enabled && ["running", "rollover_pending"].includes(workflowStatus));
   }
 
   return Object.freeze({

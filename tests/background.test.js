@@ -778,3 +778,202 @@ test("tab-bound rollover lease survives source to transient New Chat to durable 
   assert.equal(verified.ok, true);
   assert.equal(verified.project.currentConversationId, successor);
 });
+test("proactive rollover atomically pauses the Goal and persists one project plan", async () => {
+  const first = loadBackground();
+  const pageId = "https://chatgpt.com/c/proactive-atomic";
+  const started = await first.invoke({ type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0, workflow: { kind: "goal", objective: "Move early", status: "running" } });
+  const observed = { ...started.workflow, status: "running", iteration: 90, awaitingResponse: false, supervisor: { ...started.workflow.supervisor, lastProgressFingerprint: "checkpoint-proactive", lastProgressAt: 900 } };
+  const planned = await first.invoke({ type: "YOLO_WORKFLOW_PROACTIVE_ROLLOVER", pageId, expectedRevision: started.workflow.revision, workflow: observed, growth: { totalMessages: 120, visibleTextChars: 210000 } });
+  assert.equal(planned.ok, true);
+  assert.equal(planned.workflow.status, "rollover_pending");
+  assert.equal(planned.project.rollover.mode, "proactive");
+  assert.equal(planned.project.rollover.stage, "required");
+  const second = loadBackground(first.storage);
+  const workflow = await second.invoke({ type: "YOLO_WORKFLOW_GET", pageId });
+  const project = await second.invoke({ type: "YOLO_PROJECT_GET", projectId: planned.project.id });
+  assert.equal(workflow.workflow.status, "rollover_pending");
+  assert.equal(project.project.rollover.proactiveEvidenceMessages, 120);
+});
+test("proactive handoff preparation remains tab-bound and source retirement blocks further automation", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/proactive-handoff";
+  const started = await invoke({ type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0, workflow: { kind: "goal", objective: "Prepare verified handoff", status: "running" } });
+  const observed = { ...started.workflow, iteration: 100, awaitingResponse: false };
+  const planned = await invoke({ type: "YOLO_WORKFLOW_PROACTIVE_ROLLOVER", pageId, expectedRevision: started.workflow.revision, workflow: observed, growth: { totalMessages: 130, visibleTextChars: 220000 } });
+  const sender = { tab: { id: 91, url: pageId } };
+  const claimed = await invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: planned.project.id, expectedRevision: planned.project.revision, ownerId: "runtime-a", leaseMs: 60000 }, sender);
+  const prepared = await invoke({ type: "YOLO_PROJECT_PROACTIVE_HANDOFF_GENERATION_PREPARE", projectId: planned.project.id, expectedRevision: claimed.project.revision, ownerId: "runtime-a", leaseToken: claimed.leaseToken, baselineAssistantFingerprint: "assistant-before" }, sender);
+  assert.equal(prepared.ok, true);
+  assert.equal(prepared.project.rollover.ownerId, "tab:91");
+  assert.equal(prepared.project.rollover.handoffAction, "generate");
+  const duplicate = await invoke({ type: "YOLO_PROJECT_PROACTIVE_HANDOFF_VERIFICATION_PREPARE", projectId: planned.project.id, expectedRevision: prepared.project.revision, ownerId: "runtime-b", leaseToken: claimed.leaseToken, baselineAssistantFingerprint: "other" }, { tab: { id: 92, url: pageId } });
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.code, "project.rollover_lease_lost");
+});
+test("proactive source becomes permanently inert before New Chat navigation side effect", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/proactive-retire";
+  const started = await invoke({ type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0, workflow: { kind: "goal", objective: "Retire before navigation", status: "running" } });
+  const planned = await invoke({ type: "YOLO_WORKFLOW_PROACTIVE_ROLLOVER", pageId, expectedRevision: started.workflow.revision, workflow: { ...started.workflow, iteration: 100, awaitingResponse: false }, growth: { totalMessages: 130, visibleTextChars: 220000 } });
+  const sender = { tab: { id: 93, url: pageId } };
+  const claim = await invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: planned.project.id, expectedRevision: planned.project.revision, ownerId: "runtime", leaseMs: 60000 }, sender);
+  const fallback = await invoke({ type: "YOLO_PROJECT_ROLLOVER_FALLBACK", projectId: planned.project.id, expectedRevision: claim.project.revision, ownerId: "runtime", leaseToken: claim.leaseToken }, sender);
+  const pending = await invoke({ type: "YOLO_PROJECT_ROLLOVER_ADVANCE", projectId: planned.project.id, expectedRevision: fallback.project.revision, ownerId: "runtime", leaseToken: claim.leaseToken, stage: "successor_pending" }, sender);
+  const bootstrap = await invoke({ type: "YOLO_PROJECT_BOOTSTRAP_PREPARE", projectId: planned.project.id, expectedRevision: pending.project.revision, ownerId: "runtime", leaseToken: claim.leaseToken }, sender);
+  const opening = await invoke({ type: "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", projectId: planned.project.id, expectedRevision: bootstrap.project.revision, ownerId: "runtime", leaseToken: claim.leaseToken, finalPromptFingerprint: "handoff-final", finalAssistantFingerprint: "verified-final" }, sender);
+  assert.equal(opening.ok, true);
+  const blocked = await invoke({ type: "YOLO_WORKFLOW_CLAIM", pageId, ownerId: "other" }, { tab: { id: 94, url: pageId } });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.code, "project.conversation_exhausted");
+});
+
+test("project endures A to B to C to D across proactive and hard rollovers with restarts", async () => {
+  let env = loadBackground();
+  const pages = ["https://chatgpt.com/c/endurance-a", "https://chatgpt.com/c/endurance-b", "https://chatgpt.com/c/endurance-c", "https://chatgpt.com/c/endurance-d"];
+  const objective = "Endure four conversations";
+  const started = await env.invoke({ type: "YOLO_WORKFLOW_SET", pageId: pages[0], expectedRevision: 0,
+    workflow: { kind: "goal", objective, status: "running", supervisor: { lastProgressFingerprint: "checkpoint-a", lastProgressAt: 10 } } });
+  const projectId = started.project.id;
+
+  async function rollover(index, mode) {
+    const source = pages[index], successor = pages[index + 1], tabId = 201 + index;
+    const senderSource = { tab: { id: tabId, url: source } };
+    const currentWorkflow = await env.invoke({ type: "YOLO_WORKFLOW_GET", pageId: source }, senderSource);
+    let planned;
+    if (mode === "proactive") {
+      planned = await env.invoke({ type: "YOLO_WORKFLOW_PROACTIVE_ROLLOVER", pageId: source,
+        expectedRevision: currentWorkflow.workflow.revision,
+        workflow: { ...currentWorkflow.workflow, iteration: 145, awaitingResponse: false },
+        growth: { totalMessages: 18, visibleTextChars: 24000 } }, senderSource);
+      assert.equal(planned.workflow.status, "rollover_pending");
+    } else {
+      planned = await env.invoke({ type: "YOLO_WORKFLOW_SET", pageId: source,
+        expectedRevision: currentWorkflow.workflow.revision,
+        workflow: { ...currentWorkflow.workflow, status: "rollover_required", reason: "hard context limit" } }, senderSource);
+      assert.equal(planned.workflow.status, "rollover_required");
+    }
+
+    env = loadBackground(env.storage);
+    let project = (await env.invoke({ type: "YOLO_PROJECT_GET", projectId })).project;
+    const claimed = await env.invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId,
+      expectedRevision: project.revision, ownerId: `runtime-${index}`, leaseMs: 120000 }, senderSource);
+    assert.equal(claimed.ok, true);
+    project = claimed.project;
+    const leaseToken = claimed.leaseToken;
+
+    if (mode === "proactive") {
+      const generated = await env.invoke({ type: "YOLO_PROJECT_PROACTIVE_HANDOFF_GENERATION_PREPARE", projectId,
+        expectedRevision: project.revision, ownerId: `runtime-${index}`, leaseToken,
+        baselineAssistantFingerprint: `assistant-${index}`, baselineUserFingerprint: `user-${index}` }, senderSource);
+      const candidate = [`Project-ID: ${projectId}`, `Generation: ${generated.project.currentGeneration}`,
+        "Objective: continue the same project", "Current-State: durable state recovered",
+        `Completed: generation ${generated.project.currentGeneration} work`, "Unresolved: continue remaining objective",
+        "Validation: deterministic endurance test", "Next-Action: continue in successor"].join("\n");
+      const saved = await env.invoke({ type: "YOLO_PROJECT_HANDOFF_SAVE", projectId,
+        expectedRevision: generated.project.revision, ownerId: `runtime-${index}`, leaseToken, text: candidate }, senderSource);
+      const verificationPrep = await env.invoke({ type: "YOLO_PROJECT_PROACTIVE_HANDOFF_VERIFICATION_PREPARE", projectId,
+        expectedRevision: saved.project.revision, ownerId: `runtime-${index}`, leaseToken,
+        baselineAssistantFingerprint: `assistant-verify-${index}`, baselineUserFingerprint: `user-verify-${index}` }, senderSource);
+      const marker = `[YOLO:HANDOFF_VERIFIED:${verificationPrep.project.latestHandoff.fingerprint}]`;
+      const verified = await env.invoke({ type: "YOLO_PROJECT_HANDOFF_VERIFY", projectId,
+        expectedRevision: verificationPrep.project.revision, ownerId: `runtime-${index}`, leaseToken,
+        verificationText: `Verified against durable state.\n${marker}` }, senderSource);
+      assert.equal(verified.ok, true);
+      project = verified.project;
+    } else {
+      const fallback = await env.invoke({ type: "YOLO_PROJECT_ROLLOVER_FALLBACK", projectId,
+        expectedRevision: project.revision, ownerId: `runtime-${index}`, leaseToken }, senderSource);
+      assert.equal(fallback.ok, true);
+      project = fallback.project;
+    }
+
+    const pending = await env.invoke({ type: "YOLO_PROJECT_ROLLOVER_ADVANCE", projectId,
+      expectedRevision: project.revision, ownerId: `runtime-${index}`, leaseToken, stage: "successor_pending" }, senderSource);
+    const bootstrap = await env.invoke({ type: "YOLO_PROJECT_BOOTSTRAP_PREPARE", projectId,
+      expectedRevision: pending.project.revision, ownerId: `runtime-${index}`, leaseToken }, senderSource);
+    const opening = await env.invoke({ type: "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", projectId,
+      expectedRevision: bootstrap.project.revision, ownerId: `runtime-${index}`, leaseToken }, senderSource);
+    assert.equal(opening.ok, true);
+
+    env = loadBackground(env.storage);
+    project = (await env.invoke({ type: "YOLO_PROJECT_GET", projectId })).project;
+    const transient = { tab: { id: tabId, url: "https://chatgpt.com/" } };
+    const submitting = await env.invoke({ type: "YOLO_PROJECT_BOOTSTRAP_MARK_SUBMITTING", projectId,
+      expectedRevision: project.revision, ownerId: `runtime-${index}-transient`, leaseToken }, transient);
+    assert.equal(submitting.ok, true);
+    const senderSuccessor = { tab: { id: tabId, url: successor } };
+    const observed = await env.invoke({ type: "YOLO_PROJECT_BOOTSTRAP_OBSERVE", projectId,
+      expectedRevision: submitting.project.revision, ownerId: `runtime-${index}-successor`, leaseToken,
+      successorPageId: successor, observedUserText: submitting.project.rollover.bootstrapText }, senderSuccessor);
+    assert.equal(observed.ok, true);
+    const bootstrapMarker = `[YOLO:BOOTSTRAP_READY:${observed.project.rollover.bootstrapToken}]`;
+    const verified = await env.invoke({ type: "YOLO_PROJECT_BOOTSTRAP_VERIFY", projectId,
+      expectedRevision: observed.project.revision, ownerId: `runtime-${index}-verify`, leaseToken,
+      responseText: `Recovered generation ${index + 2}.\n${bootstrapMarker}` }, senderSuccessor);
+    assert.equal(verified.ok, true);
+
+    env = loadBackground(env.storage);
+    project = (await env.invoke({ type: "YOLO_PROJECT_GET", projectId })).project;
+    const resuming = await env.invoke({ type: "YOLO_PROJECT_ROLLOVER_ADVANCE", projectId,
+      expectedRevision: project.revision, ownerId: `runtime-${index}-resume`, leaseToken, stage: "resuming" }, senderSuccessor);
+    assert.equal(resuming.ok, true);
+    const successorWorkflow = await env.invoke({ type: "YOLO_WORKFLOW_GET", pageId: successor }, senderSuccessor);
+
+    const resumedWorkflow = await env.invoke({ type: "YOLO_WORKFLOW_SET", pageId: successor,
+      expectedRevision: successorWorkflow.workflow.revision,
+      workflow: { kind: "goal", objective, projectId, status: "running",
+        supervisor: resuming.project.supervisor } }, senderSuccessor);
+    assert.equal(resumedWorkflow.ok, true);
+    project = (await env.invoke({ type: "YOLO_PROJECT_GET", projectId })).project;
+    const completed = await env.invoke({ type: "YOLO_PROJECT_ROLLOVER_ADVANCE", projectId,
+      expectedRevision: project.revision, ownerId: `runtime-${index}-complete`, leaseToken, stage: "complete" }, senderSuccessor);
+    assert.equal(completed.ok, true);
+    assert.equal(completed.project.currentConversationId, successor);
+    assert.equal(completed.project.currentGeneration, index + 2);
+    return completed.project;
+  }
+
+  await rollover(0, "proactive");
+  await rollover(1, "hard");
+  const final = await rollover(2, "proactive");
+  assert.equal(final.currentConversationId, pages[3]);
+  assert.equal(final.currentGeneration, 4);
+  assert.equal(final.conversationChain.length, 4);
+  assert.deepEqual(Array.from(final.conversationChain, (entry) => entry.pageId), pages);
+  assert.deepEqual(Array.from(final.conversationChain, (entry) => entry.generation), [1, 2, 3, 4]);
+  assert.equal(final.conversationChain[0].doNotContinue, true);
+  assert.equal(final.conversationChain[1].doNotContinue, true);
+  assert.equal(final.conversationChain[2].doNotContinue, true);
+  assert.equal(final.conversationChain[3].doNotContinue, false);
+  assert.equal(final.conversationChain[0].successorPageId, pages[1]);
+  assert.equal(final.conversationChain[1].successorPageId, pages[2]);
+  assert.equal(final.conversationChain[2].successorPageId, pages[3]);
+  assert.equal(final.status, "active");
+});
+
+test("proactive ownership loss aborts project and pauses Goal atomically across restart", async () => {
+  const first = loadBackground();
+  const pageId = "https://chatgpt.com/c/proactive-abort";
+  const sender = { tab: { id: 101, url: pageId } };
+  const started = await first.invoke({ type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0, workflow: { kind: "goal", objective: "Recover aborted rollover", status: "running" } }, sender);
+  const observed = { ...started.workflow, iteration: 150, awaitingResponse: false };
+  const planned = await first.invoke({ type: "YOLO_WORKFLOW_PROACTIVE_ROLLOVER", pageId, expectedRevision: started.workflow.revision, workflow: observed, growth: { totalMessages: 1, visibleTextChars: 1 } }, sender);
+  const claim = await first.invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: planned.project.id, expectedRevision: planned.project.revision, ownerId: "runtime", leaseMs: 60000 }, sender);
+  const prepared = await first.invoke({ type: "YOLO_PROJECT_PROACTIVE_HANDOFF_GENERATION_PREPARE", projectId: planned.project.id, expectedRevision: claim.project.revision, ownerId: "runtime", leaseToken: claim.leaseToken, baselineAssistantFingerprint: "before", baselineUserFingerprint: "owned" }, sender);
+  const aborted = await first.invoke({ type: "YOLO_WORKFLOW_PROACTIVE_ABORT", pageId, projectId: planned.project.id, expectedRevision: planned.workflow.revision, expectedProjectRevision: prepared.project.revision, ownerId: "runtime", leaseToken: claim.leaseToken, reason: "conversation ownership changed" }, sender);
+  assert.equal(aborted.ok, true);
+  assert.equal(aborted.workflow.status, "paused");
+  assert.equal(aborted.project.status, "active");
+  assert.equal(aborted.project.rollover.stage, "failed");
+  assert.equal(aborted.project.rollover.leaseToken, "");
+  assert.equal(aborted.project.conversationChain[0].doNotContinue, false);
+  const second = loadBackground(first.storage);
+  const workflow = await second.invoke({ type: "YOLO_WORKFLOW_GET", pageId }, sender);
+  const project = await second.invoke({ type: "YOLO_PROJECT_GET", projectId: planned.project.id }, sender);
+  assert.equal(workflow.workflow.status, "paused");
+  assert.equal(project.project.status, "active");
+  assert.equal(project.project.rollover.proactiveAttempts, 1);
+  const resumed = await second.invoke({ type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: workflow.workflow.revision, workflow: { ...workflow.workflow, status: "running", reason: "user resumed" } }, sender);
+  assert.equal(resumed.ok, true);
+  assert.equal(resumed.workflow.status, "running");
+});

@@ -160,3 +160,25 @@ test("provider and human stop states remain active for workflow capacity", async
     assert.equal(overflow.code, "workflow.conversation_limit");
   }
 });
+
+
+test("proactive rollover-pending workflows remain active for capacity", async () => {
+  const { invoke } = loadBackground();
+  for (let index = 0; index < 25; index += 1) {
+    const response = await invoke({
+      type: "YOLO_WORKFLOW_SET",
+      pageId: `https://chatgpt.com/c/rollover-pending-${index}`,
+      expectedRevision: 0,
+      workflow: { kind: "goal", objective: `handoff ${index}`, status: "rollover_pending" }
+    });
+    assert.equal(response.ok, true);
+  }
+  const overflow = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId: "https://chatgpt.com/c/rollover-pending-overflow",
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "overflow", status: "running" }
+  });
+  assert.equal(overflow.ok, false);
+  assert.equal(overflow.code, "workflow.conversation_limit");
+});

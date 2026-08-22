@@ -138,3 +138,58 @@ test("bootstrap refuses stale or non-empty destinations before persistence or su
   assert.match(handler, /newChatOpeningAt > BOOTSTRAP_CONFIRM_TIMEOUT_MS|now\(\) - project\.rollover\.newChatOpeningAt > BOOTSTRAP_CONFIRM_TIMEOUT_MS/);
   assert.match(handler, /new_chat_stale/);
 });
+
+test("proactive rollover is planned before the next Goal continuation prompt", () => {
+  const process = source.slice(source.indexOf("async function processResponse"), source.indexOf("async function handlePendingWorkflowItem"));
+  const growth = process.indexOf("Platforms.conversationGrowthSnapshot(adapter(), document)");
+  const plan = process.indexOf("await planProactiveWorkflow(state.workflow, growth)");
+  const rollover = process.indexOf("await handleRollover()");
+  const continuation = process.indexOf('Commands.workflowPrompt(state.workflow, "continue")');
+  assert.ok(growth >= 0 && plan > growth && rollover > plan && continuation > rollover);
+});
+
+test("proactive handoff delivery is ownership-checked and deduplicated", () => {
+  const handler = source.slice(source.indexOf("async function proactiveProjectPromptResult"), source.indexOf("async function submitBootstrap"));
+  const user = handler.indexOf("const userFingerprint = latestUserFingerprint()");
+  const ownership = handler.indexOf("handoffBaselineUserFingerprint");
+  const dedupe = handler.indexOf('const dedupeKey = ["project-handoff"');
+  const queue = handler.indexOf('await queuePrompt(prompt, { source: "project:handoff", dedupeKey })');
+  assert.ok(user >= 0 && ownership > user && dedupe > ownership && queue > dedupe);
+});
+
+
+test("hard exhaustion preempts proactive source-chat handoff prompts", () => {
+  const handler = source.slice(source.indexOf("async function handleRollover"), source.indexOf("async function handleWorkflow"));
+  const stop = handler.indexOf("Platforms.workflowStopState(adapter(), apiState.settings || {}, document)");
+  const hard = handler.indexOf('stopState?.status === "rollover_required"');
+  const convert = handler.indexOf("await markWorkflow(stopState.status, stopState.reason, stopState.code)");
+  const proactive = handler.indexOf("await progressProactiveHandoff(project, leaseToken)");
+  assert.ok(stop >= 0 && hard > stop && convert > hard && proactive > convert);
+});
+
+test("rollover-pending runtime stays active for hidden polling and refresh protection", () => {
+  const health = source.slice(source.indexOf("function getHealth"), source.indexOf("function schedulePoll"));
+  assert.match(health, /\["running", "rollover_pending"\]\.includes\(workflow\.status\)/);
+});
+
+test("proactive ownership loss uses atomic abort instead of stranding rollover_pending", () => {
+  const helper = source.slice(source.indexOf("async function abortProactiveWorkflow"), source.indexOf("async function mutateProject"));
+  assert.match(helper, /YOLO_WORKFLOW_PROACTIVE_ABORT/);
+  assert.match(helper, /expectedRevision: state\.workflow\.revision/);
+  assert.match(helper, /expectedProjectRevision: project\.revision/);
+  assert.ok(helper.indexOf("applyWorkflowResponse") < helper.indexOf("clearRolloverSession()"));
+  const progress = source.slice(source.indexOf("async function progressProactiveHandoff"), source.indexOf("async function handleRollover"));
+  const lost = progress.indexOf('result.kind === "ownership_lost"');
+  const abort = progress.indexOf("await abortProactiveWorkflow(project, leaseToken", lost);
+  assert.ok(lost >= 0 && abort > lost);
+  assert.doesNotMatch(progress.slice(lost, abort + 200), /failProjectRollover/);
+});
+test("proactive handoff queue failure falls back to durable evidence", () => {
+  const progress = source.slice(source.indexOf("async function progressProactiveHandoff"), source.indexOf("async function handleRollover"));
+  const failed = progress.indexOf('result.kind === "queue_failed"');
+  const fallback = progress.indexOf("await fallbackProjectRollover(project, leaseToken)", failed);
+  const abort = progress.indexOf("await abortProactiveWorkflow", failed);
+  assert.ok(failed >= 0 && fallback > failed);
+  assert.ok(abort === -1 || fallback < abort);
+  assert.match(progress, /continuing from verified durable fallback/);
+});

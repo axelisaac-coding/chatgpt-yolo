@@ -33,9 +33,11 @@ test("scheduled refresh fails closed around work and recent activity", () => {
   assert.equal(Lifecycle.canAutomaticRefresh({ ...base, lastDomActivityAt: 90000 }), false);
 });
 
-test("only explicitly enabled running workflows are protected from discard", () => {
+test("running and proactive-rollover workflows are protected from discard when enabled", () => {
   assert.equal(Lifecycle.shouldProtectTab({ enabled: true, workflowStatus: "running" }), true);
-  assert.equal(Lifecycle.shouldProtectTab({ enabled: false, workflowStatus: "running" }), false);
+  assert.equal(Lifecycle.shouldProtectTab({ enabled: true, workflowStatus: "rollover_pending" }), true);
+  assert.equal(Lifecycle.shouldProtectTab({ enabled: false, workflowStatus: "rollover_pending" }), false);
+  assert.equal(Lifecycle.shouldProtectTab({ enabled: true, workflowStatus: "rollover_required" }), false);
   assert.equal(Lifecycle.shouldProtectTab({ enabled: true, workflowStatus: "completed" }), false);
 });
 

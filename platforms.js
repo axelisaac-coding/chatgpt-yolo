@@ -245,6 +245,19 @@
     return adapter ? latestMessageText(adapter.userSelectors, documentLike) : "";
   }
 
+  function conversationGrowthSnapshot(adapter, documentLike = document) {
+    if (!adapter) return { userMessages: 0, assistantMessages: 0, totalMessages: 0, visibleTextChars: 0 };
+    const users = uniqueElements((adapter.userSelectors || []).flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    const assistants = uniqueElements((adapter.assistantSelectors || []).flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    const messages = uniqueElements([...users, ...assistants]);
+    return {
+      userMessages: users.length,
+      assistantMessages: assistants.length,
+      totalMessages: messages.length,
+      visibleTextChars: messages.reduce((sum, element) => sum + normalizedMultilineText(element).length, 0)
+    };
+  }
+
   function isTextControl(element) {
     const tag = String(element?.tagName || "").toUpperCase();
     return tag === "TEXTAREA" || tag === "INPUT";
@@ -470,6 +483,7 @@
     workflowStopState,
     latestAssistantText,
     latestUserText,
+    conversationGrowthSnapshot,
     userMessageSnapshot,
     composerText,
     setComposerValue,

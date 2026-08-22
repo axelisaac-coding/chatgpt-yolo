@@ -137,6 +137,29 @@
     return response?.ok ? response : null;
   }
 
+  async function planProactiveWorkflow(workflow, growth) {
+    const pageId = state.pageId;
+    const response = await backgroundSend({
+      type: "YOLO_WORKFLOW_PROACTIVE_ROLLOVER",
+      pageId,
+      expectedRevision: workflow.revision,
+      ownerId: state.ownerId,
+      workflow,
+      growth
+    });
+    applyWorkflowResponse(response, pageId);
+    if (response?.ok && response.project?.id) state.rolloverProjectId = saveRolloverProjectId(response.project.id);
+    return response;
+  }
+
+  async function abortProactiveWorkflow(project, leaseToken, reason) {
+    const pageId = state.pageId;
+    const response = await backgroundSend({ type: "YOLO_WORKFLOW_PROACTIVE_ABORT", pageId, projectId: project.id, expectedRevision: state.workflow.revision, expectedProjectRevision: project.revision, ownerId: state.ownerId, leaseToken, reason });
+    applyWorkflowResponse(response, pageId);
+    if (response?.ok) { clearRolloverSession(); await record(reason, "warning", "supervisor.rollover.proactive.aborted"); }
+    return response;
+  }
+
   async function mutateProject(project, type, leaseToken, extra = {}) {
     if (!project?.id) return null;
     return backgroundSend({
@@ -149,6 +172,28 @@
     });
   }
 
+  async function prepareProactiveHandoffGeneration(project, leaseToken) {
+    return mutateProject(project, "YOLO_PROJECT_PROACTIVE_HANDOFF_GENERATION_PREPARE", leaseToken, {
+      baselineAssistantFingerprint: latestAssistantFingerprint(),
+      baselineUserFingerprint: latestUserFingerprint()
+    });
+  }
+
+  async function prepareProactiveHandoffVerification(project, leaseToken) {
+    return mutateProject(project, "YOLO_PROJECT_PROACTIVE_HANDOFF_VERIFICATION_PREPARE", leaseToken, {
+      baselineAssistantFingerprint: latestAssistantFingerprint(),
+      baselineUserFingerprint: latestUserFingerprint()
+    });
+  }
+
+  async function saveProjectHandoff(project, leaseToken, text) {
+    return mutateProject(project, "YOLO_PROJECT_HANDOFF_SAVE", leaseToken, { text });
+  }
+
+  async function verifyProjectHandoff(project, leaseToken, verificationText) {
+    return mutateProject(project, "YOLO_PROJECT_HANDOFF_VERIFY", leaseToken, { verificationText });
+  }
+
   async function advanceProjectRollover(project, leaseToken, stage, extra = {}) {
     return mutateProject(project, "YOLO_PROJECT_ROLLOVER_ADVANCE", leaseToken, { stage, ...extra });
   }
@@ -158,7 +203,11 @@
   }
 
   async function markNewChatOpening(project, leaseToken) {
-    return mutateProject(project, "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", leaseToken);
+    return mutateProject(project, "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", leaseToken, {
+      finalPromptFingerprint: latestUserFingerprint(),
+      finalAssistantFingerprint: latestAssistantFingerprint(),
+      lastVerifiedCheckpoint: state.workflow?.supervisor?.lastProgressFingerprint || project?.latestVerifiedCheckpoint?.id || ""
+    });
   }
 
   async function markBootstrapSubmitting(project, leaseToken) {
@@ -254,7 +303,7 @@
     return Boolean(response?.ok || response?.code === "queue.not_found");
   }
 
-  async function queuePrompt(text, { workflow = null, source = "command" } = {}) {
+  async function queuePrompt(text, { workflow = null, source = "command", dedupeKey = "" } = {}) {
     const prompt = String(text || "").trim();
     const pageId = state.pageId;
     if (!prompt) return { ok: false, reason: "Command produced an empty prompt" };
@@ -290,10 +339,11 @@
         type: "YOLO_QUEUE_ADD",
         pageId,
         front: true,
-        item: { text: prompt, source, sourceId: "" }
+        item: { text: prompt, source, sourceId: "", dedupeKey }
       });
     }
     if (!response?.ok) return response || { ok: false, reason: "Could not add the command prompt to the queue" };
+    if (response.alreadyCompleted) return { ...response, sent: false };
 
     const api = engine();
     const sent = api ? await api.runAction("queue-next") : false;
@@ -513,6 +563,23 @@
       return true;
     }
 
+    if (state.workflow.kind === "goal") {
+      const growth = Platforms.conversationGrowthSnapshot(adapter(), document);
+      const proactive = Commands.proactiveRolloverEvidence(state.workflow, growth);
+      if (proactive.triggered) {
+        const planned = await planProactiveWorkflow(state.workflow, growth);
+        if (planned?.ok) {
+          await record(proactive.reason, "info", proactive.code);
+          await handleRollover();
+          return true;
+        }
+        if (planned?.code === "workflow.conflict") {
+          await refreshWorkflow();
+          return true;
+        }
+      }
+    }
+
     const prompt = Commands.workflowPrompt(state.workflow, "continue");
     const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
     if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not queue the next workflow iteration", "command.workflow.queue_failed");
@@ -570,6 +637,30 @@
       await record(reason, "warning", code);
     }
     return Boolean(failed?.ok);
+  }
+
+  async function proactiveProjectPromptResult(project) {
+    const rollover = project?.rollover || {};
+    const prompt = String(rollover.handoffPromptText || "").trim();
+    const promptFingerprint = String(rollover.handoffPromptFingerprint || "");
+    if (!prompt || !promptFingerprint || !["generate", "verify"].includes(rollover.handoffAction)) return { kind: "invalid" };
+    const userFingerprint = latestUserFingerprint();
+    if (userFingerprint !== promptFingerprint) {
+      if (userFingerprint !== String(rollover.handoffBaselineUserFingerprint || "")) return { kind: "ownership_lost" };
+      const dedupeKey = ["project-handoff", project.id, project.currentGeneration, rollover.handoffAction, promptFingerprint].join(":");
+      const queued = await queuePrompt(prompt, { source: "project:handoff", dedupeKey });
+      return queued?.ok ? { kind: "waiting" } : { kind: "queue_failed", reason: queued?.reason || "Could not queue proactive handoff prompt" };
+    }
+    const api = engine();
+    if (!api || !await api.ensureReady()) return { kind: "waiting" };
+    const apiState = api.getState();
+    if (!apiState.hydrated || apiState.generating) return { kind: "waiting" };
+    const text = Platforms.latestAssistantText(adapter());
+    const fingerprint = Commands.fingerprint(text);
+    if (!text || fingerprint === rollover.handoffBaselineAssistantFingerprint) return { kind: "waiting" };
+    const quietSince = Math.max(rollover.handoffPromptPreparedAt || 0, apiState.lastDomActivityAt || 0, apiState.lastGenerationAt || 0);
+    if (now() - quietSince < RESPONSE_SETTLE_MS) return { kind: "waiting" };
+    return { kind: "response", text, fingerprint };
   }
 
   async function submitBootstrap(project, leaseToken) {
@@ -645,6 +736,62 @@
     return true;
   }
 
+  async function progressProactiveHandoff(project, leaseToken) {
+    if (state.pageId !== project.rollover.sourcePageId) return { project, waiting: true };
+    if (project.rollover.stage === "required") {
+      const prepared = await prepareProactiveHandoffGeneration(project, leaseToken);
+      if (!prepared?.ok) return null;
+      project = prepared.project;
+      await record("Preparing a verified proactive rollover handoff", "info", "supervisor.rollover.proactive.handoff_generation");
+    }
+    if (project.rollover.stage !== "handoff_pending") return { project, waiting: false };
+    if (project.rollover.handoffAction === "idle" && project.latestHandoff?.text && !project.latestHandoff?.verified) {
+      const prepared = await prepareProactiveHandoffVerification(project, leaseToken);
+      if (!prepared?.ok) return null;
+      project = prepared.project;
+    }
+    if (!["generate", "verify"].includes(project.rollover.handoffAction)) return { project, waiting: false };
+    const action = project.rollover.handoffAction;
+    const result = await proactiveProjectPromptResult(project);
+    if (result.kind === "waiting") return { project, waiting: true };
+    if (result.kind === "ownership_lost") {
+      await abortProactiveWorkflow(project, leaseToken, "Conversation advanced outside the proactive rollover handoff; Goal paused for explicit recovery");
+      return null;
+    }
+    if (result.kind === "queue_failed") {
+      const fallback = await fallbackProjectRollover(project, leaseToken);
+      if (!fallback?.ok) return null;
+      await record("Proactive handoff delivery failed; continuing from verified durable fallback", "warning", "supervisor.rollover.proactive.handoff_fallback");
+      return { project: fallback.project, waiting: false };
+    }
+    if (result.kind !== "response") {
+      await abortProactiveWorkflow(project, leaseToken, result.reason || "Proactive rollover handoff could not be delivered safely; Goal paused for explicit recovery");
+      return null;
+    }
+    if (action === "generate") {
+      const saved = await saveProjectHandoff(project, leaseToken, result.text);
+      if (!saved?.ok) {
+        const fallback = await fallbackProjectRollover(saved?.project || project, leaseToken);
+        if (!fallback?.ok) return null;
+        await record("Fresh proactive handoff was unusable; continuing rollover from verified durable fallback", "warning", "supervisor.rollover.proactive.handoff_fallback");
+        return { project: fallback.project, waiting: false };
+      }
+      project = saved.project;
+      const verification = await prepareProactiveHandoffVerification(project, leaseToken);
+      if (!verification?.ok) return null;
+      return { project: verification.project, waiting: true };
+    }
+    const verified = await verifyProjectHandoff(project, leaseToken, result.text);
+    if (!verified?.ok) {
+      const fallback = await fallbackProjectRollover(verified?.project || project, leaseToken);
+      if (!fallback?.ok) return null;
+      await record("Proactive handoff verification did not pass; using verified durable fallback", "warning", "supervisor.rollover.proactive.verification_fallback");
+      return { project: fallback.project, waiting: false };
+    }
+    await record("Proactive rollover handoff verified", "success", "supervisor.rollover.proactive.handoff_verified");
+    return { project: verified.project, waiting: false };
+  }
+
   async function handleRollover() {
     const workflow = Commands.normalizeWorkflow(state.workflow);
     const projectId = state.rolloverProjectId || (workflow.kind === "goal" ? workflow.projectId : "");
@@ -658,6 +805,16 @@
       clearRolloverSession();
       return false;
     }
+    if (project.rollover?.mode === "proactive" && state.pageId === project.rollover.sourcePageId) {
+      const apiState = engine()?.getState?.() || {};
+      const stopState = Platforms.workflowStopState(adapter(), apiState.settings || {}, document);
+      if (stopState?.status === "rollover_required") {
+        const marked = await markWorkflow(stopState.status, stopState.reason, stopState.code);
+        if (!marked) return false;
+        project = await readProject(project.id);
+        if (!project) return false;
+      }
+    }
     if (project.rollover?.stage === "failed" || project.rollover?.bootstrapState === "delivery_unknown") {
       clearRolloverSession();
       return false;
@@ -669,7 +826,13 @@
     const leaseToken = claimed.leaseToken;
     state.rolloverProjectId = saveRolloverProjectId(project.id);
 
-    if (["required", "handoff_pending"].includes(project.rollover.stage)) {
+    if (project.rollover.mode === "proactive" && ["required", "handoff_pending"].includes(project.rollover.stage)) {
+      const progressed = await progressProactiveHandoff(project, leaseToken);
+      if (!progressed) return false;
+      project = progressed.project;
+      if (progressed.waiting) return true;
+    }
+    if (project.rollover.mode !== "proactive" && ["required", "handoff_pending"].includes(project.rollover.stage)) {
       const fallback = await fallbackProjectRollover(project, leaseToken);
       if (!fallback?.ok) return false;
       project = fallback.project;
@@ -849,7 +1012,7 @@
     const workflow = Commands.normalizeWorkflow(state.workflow);
     return {
       status: workflow.status,
-      active: workflow.status === "running",
+      active: ["running", "rollover_pending"].includes(workflow.status),
       awaitingResponse: workflow.awaitingResponse,
       pendingItemId: workflow.pendingItemId,
       iteration: workflow.iteration,

@@ -16,7 +16,7 @@ const actionLock = Shared.createLock();
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
 const MAX_RETAINED_COMPLETED_WORKFLOWS = 100;
-const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "stalled", "rate_limited", "human_required", "rollover_required", "blocked"]);
+const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "stalled", "rate_limited", "human_required", "rollover_pending", "rollover_required", "blocked"]);
 const WORKFLOW_LEASE_MS = 2 * 60 * 1000;
 const WORKFLOW_RENEW_WINDOW_MS = 30 * 1000;
 
@@ -379,6 +379,41 @@ async function handleWorkflowMessage(message, sender) {
       return { ok: true, workflow: current };
     }
 
+    if (message.type === "YOLO_WORKFLOW_PROACTIVE_ROLLOVER") {
+      const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+      if (expectedRevision !== current.revision) return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
+      if (tombstone) return { ok: false, reason: "Retired conversations cannot begin proactive rollover", code: "project.conversation_exhausted", workflow: current };
+      const observed = Commands.normalizeWorkflow({ ...message.workflow, revision: current.revision });
+      if (current.kind !== "goal" || current.status !== "running" || observed.id !== current.id || observed.kind !== "goal" || observed.objective !== current.objective || observed.status !== "running") {
+        return { ok: false, reason: "Workflow is not eligible for proactive rollover", code: "workflow.proactive_ineligible", workflow: current };
+      }
+      const linked = Projects.ensureProjectForWorkflow(projectMap, pageId, observed);
+      const planned = Projects.planProactiveRollover(linked.project, pageId, { workflow: observed, growth: message.growth, at: Date.now() });
+      if (!planned.ok) return { ...planned, workflow: current };
+      const workflow = Commands.setWorkflowStatus({ ...observed, projectId: planned.project.id }, "rollover_pending", planned.evidence.reason);
+      workflow.revision = current.revision + 1;
+      linked.map[planned.project.id] = planned.project;
+      await storageSet({ [key]: workflow, [Config.STORAGE_KEYS.projects]: linked.map });
+      return { ok: true, code: "workflow.proactive_rollover_planned", workflow, project: planned.project, evidence: planned.evidence };
+    }
+
+    if (message.type === "YOLO_WORKFLOW_PROACTIVE_ABORT") {
+      const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+      if (expectedRevision !== current.revision) return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
+      if (current.kind !== "goal" || current.status !== "rollover_pending" || !current.projectId || current.projectId !== String(message.projectId || "")) return { ok: false, reason: "Workflow is not awaiting proactive rollover", code: "workflow.proactive_abort_invalid", workflow: current };
+      const project = projectMap[current.projectId];
+      if (!project) return { ok: false, reason: "Project not found", code: "project.not_found", workflow: current };
+      const expectedProjectRevision = Math.max(0, Math.round(Number(message.expectedProjectRevision) || 0));
+      if (expectedProjectRevision !== project.revision) return { ok: false, reason: "Project changed in another tab", code: "project.conflict", workflow: current, project };
+      const cancelled = Projects.cancelProactiveRollover(project, { ownerId: projectMutationOwner(message, sender), leaseToken: message.leaseToken, reason: message.reason, at: Date.now() });
+      if (!cancelled.ok) return { ...cancelled, workflow: current };
+      const workflow = Commands.setWorkflowStatus(current, "paused", message.reason || "Proactive rollover safely aborted");
+      workflow.revision = current.revision + 1;
+      projectMap[cancelled.project.id] = cancelled.project;
+      await storageSet({ [key]: workflow, [Config.STORAGE_KEYS.projects]: projectMap });
+      return { ok: true, code: "workflow.proactive_rollover_aborted", workflow, project: cancelled.project };
+    }
+
     if (message.type === "YOLO_WORKFLOW_SET") {
       const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
       if (expectedRevision !== current.revision) {
@@ -508,8 +543,12 @@ async function handleProjectMessage(message, sender) {
       result = Projects.verifyHandoff(current, message.verificationText, options);
     } else if (message.type === "YOLO_PROJECT_ROLLOVER_FALLBACK") {
       result = Projects.applyRolloverFallback(current, options);
+    } else if (message.type === "YOLO_PROJECT_PROACTIVE_HANDOFF_GENERATION_PREPARE") {
+      result = Projects.prepareProactiveHandoffGeneration(current, { ...options, baselineAssistantFingerprint: message.baselineAssistantFingerprint, baselineUserFingerprint: message.baselineUserFingerprint });
+    } else if (message.type === "YOLO_PROJECT_PROACTIVE_HANDOFF_VERIFICATION_PREPARE") {
+      result = Projects.prepareProactiveHandoffVerification(current, { ...options, baselineAssistantFingerprint: message.baselineAssistantFingerprint, baselineUserFingerprint: message.baselineUserFingerprint });
     } else if (message.type === "YOLO_PROJECT_NEW_CHAT_MARK_OPENING") {
-      result = Projects.markNewChatOpening(current, options);
+      result = Projects.markNewChatOpening(current, { ...options, finalPromptFingerprint: message.finalPromptFingerprint, finalAssistantFingerprint: message.finalAssistantFingerprint, lastVerifiedCheckpoint: message.lastVerifiedCheckpoint });
     } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_PREPARE") {
       result = Projects.prepareBootstrap(current, options);
     } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_MARK_SUBMITTING") {

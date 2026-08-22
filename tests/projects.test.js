@@ -390,3 +390,98 @@ test("long bootstrap text keeps one canonical persisted fingerprint and terminal
   assert.equal(prepared.project.rollover.bootstrapFingerprint, Commands.fingerprint(prepared.project.rollover.bootstrapText));
   assert.match(prepared.project.rollover.bootstrapText, new RegExp(`\\[YOLO:BOOTSTRAP_READY:${prepared.project.rollover.bootstrapToken}\\]$`));
 });
+test("proactive rollover planning is threshold-backed, generation-scoped, and restart-safe", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "Move before exhaustion", status: "running", iteration: 90, supervisor: { lastProgressFingerprint: "checkpoint-proactive", lastProgressAt: 900 } }, 1000);
+  const started = Projects.ensureProjectForWorkflow({}, pageA, workflow, 1000).project;
+  const planned = Projects.planProactiveRollover(started, pageA, { workflow, growth: { totalMessages: 120, visibleTextChars: 210000 }, at: 1100 });
+  assert.equal(planned.ok, true);
+  assert.equal(planned.project.status, "rollover_required");
+  assert.equal(planned.project.rollover.mode, "proactive");
+  assert.equal(planned.project.rollover.stage, "required");
+  assert.equal(planned.project.rollover.proactiveAttempts, 1);
+  assert.equal(planned.project.rollover.proactiveEvidenceMessages, 120);
+  assert.equal(planned.project.latestVerifiedCheckpoint.id, "checkpoint-proactive");
+  assert.equal(Projects.normalizeProject(planned.project, planned.project.id, 1200).rollover.mode, "proactive");
+});
+test("proactive handoff prompts are durably prepared and verified before successor creation", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "Verified proactive move", status: "running", iteration: 100 }, 2000);
+  let project = Projects.ensureProjectForWorkflow({}, pageA, workflow, 2000).project;
+  project = Projects.planProactiveRollover(project, pageA, { workflow, growth: { totalMessages: 130, visibleTextChars: 220000 }, at: 2100 }).project;
+  const claim = Projects.claimRollover(project, "tab-proactive", { at: 2200, leaseMs: 60000 });
+  const generation = Projects.prepareProactiveHandoffGeneration(claim.project, { ownerId: "tab-proactive", leaseToken: claim.leaseToken, baselineAssistantFingerprint: "assistant-before", at: 2300 });
+  assert.equal(generation.ok, true);
+  assert.equal(generation.project.rollover.handoffAction, "generate");
+  assert.ok(generation.project.rollover.handoffPromptFingerprint);
+  const saved = Projects.saveHandoffCandidate(generation.project, validHandoff(generation.project), { ownerId: "tab-proactive", leaseToken: claim.leaseToken, at: 2400 });
+  assert.equal(saved.project.rollover.handoffAction, "idle");
+  const verification = Projects.prepareProactiveHandoffVerification(saved.project, { ownerId: "tab-proactive", leaseToken: claim.leaseToken, baselineAssistantFingerprint: "assistant-candidate", at: 2500 });
+  assert.equal(verification.ok, true);
+  assert.equal(verification.project.rollover.handoffAction, "verify");
+  assert.match(verification.project.rollover.handoffPromptText, /HANDOFF_VERIFIED/);
+  const verified = Projects.verifyHandoff(verification.project, Projects.handoffVerificationMarker(saved.fingerprint, true), { ownerId: "tab-proactive", leaseToken: claim.leaseToken, at: 2600 });
+  assert.equal(verified.project.rollover.stage, "handoff_ready");
+  assert.equal(verified.project.rollover.handoffAction, "idle");
+});
+test("hard exhaustion takes over an unfinished proactive handoff without another source prompt", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "Escalate safely", status: "running", iteration: 100, supervisor: { lastProgressFingerprint: "checkpoint-hard-takeover" } }, 3000);
+  let project = Projects.ensureProjectForWorkflow({}, pageA, workflow, 3000).project;
+  project = Projects.planProactiveRollover(project, pageA, { workflow, growth: { totalMessages: 140, visibleTextChars: 230000 }, at: 3100 }).project;
+  const claim = Projects.claimRollover(project, "tab-proactive", { at: 3200, leaseMs: 60000 });
+  const prepared = Projects.prepareProactiveHandoffGeneration(claim.project, { ownerId: "tab-proactive", leaseToken: claim.leaseToken, baselineAssistantFingerprint: "before", at: 3300 });
+  const exhausted = Projects.markConversationExhausted(prepared.project, pageA, { workflow: { ...workflow, status: "rollover_required", reason: "maximum conversation length reached" }, at: 3400 });
+  assert.equal(exhausted.rollover.mode, "hard");
+  assert.equal(exhausted.rollover.stage, "required");
+  assert.equal(exhausted.rollover.handoffAction, "idle");
+  assert.equal(exhausted.conversationChain[0].doNotContinue, true);
+});
+
+test("persisted New Chat intent retires a proactive source before navigation", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "Retire source", status: "running", iteration: 100 }, 4000);
+  let project = Projects.ensureProjectForWorkflow({}, pageA, workflow, 4000).project;
+  project = Projects.planProactiveRollover(project, pageA, { workflow, growth: { totalMessages: 130, visibleTextChars: 220000 }, at: 4100 }).project;
+  const claim = Projects.claimRollover(project, "tab-proactive", { at: 4200, leaseMs: 60000 });
+  const ready = Projects.applyRolloverFallback(claim.project, { ownerId: "tab-proactive", leaseToken: claim.leaseToken, at: 4300 });
+  const pending = Projects.advanceRollover(ready.project, "successor_pending", { ownerId: "tab-proactive", leaseToken: claim.leaseToken, at: 4400 });
+  const bootstrap = Projects.prepareBootstrap(pending.project, { ownerId: "tab-proactive", leaseToken: claim.leaseToken, at: 4500 });
+  const marked = Projects.markNewChatOpening(bootstrap.project, { ownerId: "tab-proactive", leaseToken: claim.leaseToken, finalPromptFingerprint: "handoff-verify", finalAssistantFingerprint: "handoff-ok", at: 4600 });
+  const source = marked.project.conversationChain.find((entry) => entry.pageId === pageA);
+  assert.equal(source.doNotContinue, true);
+  assert.equal(source.status, "rolling_over");
+  assert.equal(source.finalPromptFingerprint, "handoff-verify");
+  assert.equal(Projects.tombstoneForConversation({ [marked.project.id]: marked.project }, pageA).projectId, marked.project.id);
+});
+test("safe proactive abort returns project active while preserving bounded retry evidence", () => {
+  const baseAt = 10000;
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "Retry rollover safely", status: "running", iteration: 150 }, baseAt);
+  let project = Projects.ensureProjectForWorkflow({}, pageA, workflow, baseAt).project;
+  let planned = Projects.planProactiveRollover(project, pageA, { workflow, growth: { totalMessages: 20, visibleTextChars: 1000 }, at: baseAt + 100 });
+  assert.equal(planned.ok, true);
+  let claim = Projects.claimRollover(planned.project, "retry-tab", { at: baseAt + 200, leaseMs: 60000 });
+  let prepared = Projects.prepareProactiveHandoffGeneration(claim.project, { ownerId: "retry-tab", leaseToken: claim.leaseToken, at: baseAt + 300 });
+  let aborted = Projects.cancelProactiveRollover(prepared.project, { ownerId: "retry-tab", leaseToken: claim.leaseToken, reason: "ownership changed", at: baseAt + 400 });
+  assert.equal(aborted.ok, true);
+  assert.equal(aborted.project.status, "active");
+  assert.equal(aborted.project.rollover.stage, "failed");
+  assert.equal(aborted.project.rollover.proactiveAttempts, 1);
+  assert.equal(aborted.project.rollover.leaseToken, "");
+  const cooldown = Projects.planProactiveRollover(aborted.project, pageA, { workflow, growth: { totalMessages: 20, visibleTextChars: 1000 }, at: baseAt + 500 });
+  assert.equal(cooldown.code, "project.proactive_cooldown");
+});
+test("proactive retries are capped per generation after safe aborts", () => {
+  const limits = Commands.PROACTIVE_ROLLOVER_LIMITS;
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "Bound retries", status: "running", iteration: 150 }, 20000);
+  let project = Projects.ensureProjectForWorkflow({}, pageA, workflow, 20000).project;
+  for (let attempt = 0; attempt < limits.maxAttemptsPerGeneration; attempt += 1) {
+    const at = 21000 + attempt * (limits.retryCooldownMs + 1000);
+    const planned = Projects.planProactiveRollover(project, pageA, { workflow, growth: { totalMessages: 1, visibleTextChars: 1 }, at });
+    assert.equal(planned.ok, true);
+    const claim = Projects.claimRollover(planned.project, "bounded-tab", { at: at + 100, leaseMs: 60000 });
+    const aborted = Projects.cancelProactiveRollover(claim.project, { ownerId: "bounded-tab", leaseToken: claim.leaseToken, at: at + 200 });
+    assert.equal(aborted.ok, true);
+    project = aborted.project;
+  }
+  const finalAt = project.rollover.proactiveLastAttemptAt + limits.retryCooldownMs + 1000;
+  const blocked = Projects.planProactiveRollover(project, pageA, { workflow, growth: { totalMessages: 1, visibleTextChars: 1 }, at: finalAt });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.code, "project.proactive_attempt_limit");
+});

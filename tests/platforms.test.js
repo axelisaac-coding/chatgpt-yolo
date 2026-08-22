@@ -238,3 +238,17 @@ test("new-chat control detection ignores ordinary prose and unrelated navigation
   assert.equal(Platforms.findNewChatControl(Platforms.ADAPTERS.chatgpt, doc), null);
   assert.equal(Platforms.openNewChat(Platforms.ADAPTERS.chatgpt, doc), false);
 });
+
+test("conversation growth snapshot reports only observable DOM message counts and text volume", () => {
+  const users = [{ textContent: "one" }, { textContent: "two two" }];
+  const assistants = [{ textContent: "three" }, { textContent: "four four four" }];
+  const adapter = { userSelectors: ["user"], assistantSelectors: ["assistant"] };
+  const doc = { querySelectorAll(selector) { return selector === "user" ? users : selector === "assistant" ? assistants : []; } };
+  const snapshot = Platforms.conversationGrowthSnapshot(adapter, doc);
+  assert.deepEqual(snapshot, {
+    userMessages: 2,
+    assistantMessages: 2,
+    totalMessages: 4,
+    visibleTextChars: "one".length + "two two".length + "three".length + "four four four".length
+  });
+});

@@ -106,7 +106,9 @@ test("release evidence distinguishes automated successor migration from remainin
   assert.match(evidence, /Conversation rollover development gate/i);
   assert.match(evidence, /project\.conversation_exhausted/);
   assert.match(evidence, /R6 .*AUTOMATED PASS; AUTH LIVE REQUIRED/);
-  assert.match(evidence, /R7 .*NOT YET IMPLEMENTED/);
-  assert.match(evidence, /R8 .*NOT YET IMPLEMENTED/);
+  assert.match(evidence, /R7 .*AUTOMATED PASS; AUTH LIVE REQUIRED/);
+  assert.match(evidence, /R8 .*AUTOMATED PASS; AUTH LIVE REQUIRED/);
+  assert.match(evidence, /no invented context percentage/i);
+  assert.match(evidence, /A proactive -> B hard-limit -> C proactive -> D/i);
   assert.match(evidence, /AUTH LIVE REQUIRED/);
 });
