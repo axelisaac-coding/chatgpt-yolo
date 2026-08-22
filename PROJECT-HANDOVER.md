@@ -1,4 +1,4 @@
-﻿# Continuation Supervisor — Living Handover
+# Continuation Supervisor — Living Handover
 
 Updated: 2026-08-21
 Branch: continuation-supervisor-development
@@ -76,3 +76,17 @@ Implement conservative missing-marker recovery for Goal mode. After a stable res
 
 ## Progress estimate
 ~34% overall. Persistent uncapped Goal execution, versioned Supervisor state, and runtime repeat-response stall protection are implemented with broad non-environmental regression coverage. Missing-marker/tool-window recovery, completion verification, provider/human stop detection, dashboard/status UI, packaging, and endurance validation remain.
+## Implementation checkpoint 006
+Implemented conservative automatic missing-marker recovery for persistent Goal workflows. A stable Goal response that ends without a terminal YOLO marker now produces a deterministic `recover` action instead of requiring the user to manually type Continue. Bounded Loop behavior remains fail-closed: missing markers still pause Loop mode.
+
+Recovery uses a dedicated prompt that explicitly tells ChatGPT not to assume the interrupted operation completed; to inspect the actual conversation and durable project state, files, logs, tests, or artifacts available through tools; to identify the last verified completed operation and the first incomplete or uncertain operation; to re-run or verify uncertain work; to checkpoint meaningful results; and to resume from that exact point. Recovery prompts are enqueued through the existing durable workflow queue and therefore retain the established sender lease, exact-delivery receipt, deduplication, and CAS protections.
+
+Recovery attempts are consecutive and bounded. A valid later CONTINUE/DONE/BLOCKED marker resolves/reset the recovery attempt count. Three consecutive missing-marker recovery cycles transition the Goal to the recoverable `stalled` state instead of looping indefinitely. The missing-marker stable-response quiet window was reduced from three hours to two minutes only together with this bounded recovery mechanism; normal marker-bearing responses still use the existing 15-second stable window.
+
+Validation before this checkpoint: focused commands/lifecycle/UI recovery tests pass 61/61. Broad non-environmental validation passes 256/256; `npm run check` passes; `npm run verify:extension` verifies 38 packaged files; package check/no-bare-installs and `git diff --check` pass. The two excluded baseline environmental failures remain unchanged: Windows CRLF assertion in `portability-integration.test.js` and ffprobe-dependent MP4 validation tests because ffprobe is unavailable.
+
+## Current exact next step
+Implement completion verification for persistent Goal mode. A single model-emitted `[YOLO:DONE]` must not immediately terminate a long-running project. Instead, enter a bounded verification phase/prompt that asks ChatGPT to compare durable evidence against the original objective and explicit definition-of-done criteria. Only a successful verification result should mark the workflow completed; an incomplete verification should return to normal continuation, a human/access blocker should stop appropriately, and repeated verification protocol failure should stall safely. Preserve Loop's existing direct DONE semantics unless there is a strong tested reason to change it.
+
+## Progress estimate
+~46% overall after checkpoint 006. The original manual-Continue failure mode now has an implemented, bounded, regression-tested automatic recovery path. Completion verification, provider/human stop classification, richer progress evidence, dashboard/status UI, packaging/release hardening, and real ChatGPT endurance/failure-mode validation remain.
