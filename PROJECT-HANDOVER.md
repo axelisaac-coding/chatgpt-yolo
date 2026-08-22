@@ -104,3 +104,19 @@ Add explicit stop classification for provider/rate/usage-limit states and human-
 
 ## Progress estimate
 ~57% overall after checkpoint 007. Persistent continuation, bounded abnormal-ending recovery, repeat-response circuit breaking, and evidence-based completion verification are implemented. Provider/human stop classification, richer progress evidence/no-progress observation wiring, dashboard/status UI, packaging/release documentation, and real ChatGPT endurance/failure-mode validation remain.
+## Implementation checkpoint 008
+Added deterministic provider-limit and human-required stop classification ahead of missing-marker recovery. Workflow statuses now include `rate_limited` and `human_required`; both are durable active states, count toward workflow-capacity retention, appear in the command workflow UI, and are manually resumable after the external condition is resolved.
+
+The ChatGPT platform adapter now classifies explicit provider-limit surfaces such as usage/rate/message limits, too-many-requests, reached-limit, timed retry, capacity/high-demand, and 429-style states. Ordinary transient error/retry surfaces are intentionally not classified as rate limits and remain under the extension's pre-existing error-recovery subsystem. The Supervisor therefore pauses on provider/account/model limits and does not attempt to bypass or work around ChatGPT subscription/rate restrictions.
+
+Human-required classification reuses the existing approval-card risk engine. If approvals are disabled, or a visible approval exceeds the configured automatic approval policy, the workflow becomes `human_required`. If the configured policy can legitimately handle the approval, the Supervisor does not preempt the existing approval automation. A conservative generic dialog detector also identifies explicit confirmation/permission/sign-in/connect/input dialogs that present both affirmative and negative actions.
+
+Runtime stop-surface classification occurs only after a workflow prompt has been delivered and the workflow is awaiting ChatGPT, and before generation settling/missing-marker recovery. This prevents provider-limit or human-decision surfaces from being mistaken for an abruptly ended model response.
+
+Validation: focused platform/commands/background-capacity/UI suite passes 73/73. Broad non-environmental suite passes 263/263. `npm run check`, `npm run verify:extension` (38 packaged files), package check, no-bare-installs, and `git diff --check` pass. Baseline-only CRLF/ffprobe exclusions remain unchanged.
+
+## Current exact next step
+Wire no-progress evidence into actual persistent Goal response processing. Exact repeated responses are already caught, but a model can emit different wording while making no substantive progress. Add a conservative explicit progress signal/protocol that lets ChatGPT report meaningful checkpoint progress versus no-progress, persists that evidence, resets counters only on verified progress, and stalls after the existing no-progress threshold. Do not infer semantic progress from arbitrary response wording alone.
+
+## Progress estimate
+~66% overall after checkpoint 008. Automatic continuation/recovery, repeat-loop protection, verified completion, provider-limit pausing, and human-required pausing are implemented with broad regression coverage. Progress-evidence wiring, dashboard/status improvements, final packaging/docs, real-browser endurance/failure-mode validation, and any hardening found by endurance tests remain.

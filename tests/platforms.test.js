@@ -161,3 +161,26 @@ test("reads the latest ChatGPT user prompt for workflow ownership", () => {
   };
   assert.equal(Platforms.latestUserText({ userSelectors: ["user"] }, documentLike), "workflow prompt");
 });
+
+test("provider limit surfaces are classified without treating ordinary errors as rate limits", () => {
+  const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
+  const ownerDocument = { defaultView: view };
+  const surface = (text) => ({ nodeType: 1, ownerDocument, textContent: text, getBoundingClientRect: () => ({ width: 300, height: 80 }) });
+  const adapter = { errorSelectors: ["error"], supportsApprovals: false };
+  let element = surface("You've reached the usage limit. Try again in 25 minutes.");
+  let doc = { querySelectorAll(selector) { return selector === "error" ? [element] : []; } };
+  const limited = Platforms.providerLimitState(adapter, doc);
+  assert.equal(limited.status, "rate_limited");
+  assert.equal(limited.code, "supervisor.rate_limited.provider");
+
+  element = surface("Something went wrong. Retry.");
+  assert.equal(Platforms.providerLimitState(adapter, doc), null);
+});
+
+test("approval surfaces outside configured automation policy require the human", () => {
+  const destructive = fixtures.find((entry) => entry.name === "destructive delete");
+  const doc = createFixtureDocument(destructive);
+  assert.equal(Platforms.humanRequiredState(Platforms.ADAPTERS.chatgpt, { approvalsEnabled: false, approvalPolicy: "safe" }, doc).status, "human_required");
+  assert.equal(Platforms.humanRequiredState(Platforms.ADAPTERS.chatgpt, { approvalsEnabled: true, approvalPolicy: "safe" }, doc).status, "human_required");
+  assert.equal(Platforms.humanRequiredState(Platforms.ADAPTERS.chatgpt, { approvalsEnabled: true, approvalPolicy: "all" }, doc), null);
+});

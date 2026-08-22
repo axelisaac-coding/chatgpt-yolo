@@ -106,6 +106,8 @@ test("command workflows reuse the reliable queue and fail closed", () => {
   assert.match(runtime, /type: "YOLO_QUEUE_ADD"/);
   assert.match(runtime, /runAction\("queue-next"\)/);
   assert.match(runtime, /Commands\.decideWorkflowResponse/);
+  assert.match(runtime, /Platforms\.workflowStopState/);
+  assert.match(runtime, /await markWorkflow\(stopState\.status, stopState\.reason, stopState\.code\)/);
   assert.match(commands, /response omitted the required terminal control marker/);
   assert.match(commands, /Reached the \$\{workflow\.maxIterations\}-iteration safety cap/);
 });
@@ -132,14 +134,14 @@ test("command palette preserves failed direct commands and exposes feedback", ()
   assert.match(source, /role", "status"/);
   assert.match(source, /originalComposerText/);
   assert.match(source, /Commands\.requiresArgs\(entry\.name\)/);
-  assert.match(source, /\["paused", "stalled", "blocked"\]\.includes\(currentWorkflow\.status\)/);
+  assert.match(source, /\["paused", "stalled", "rate_limited", "human_required", "blocked"\]\.includes\(currentWorkflow\.status\)/);
 });
 
 test("command UI handles blocked resume, IME, and shortcut scope safely", () => {
   const source = read("command-ui.js");
   assert.match(source, /destroyed \|\| event\.isComposing/);
   assert.match(source, /composerTarget && event\.key\.toLowerCase\(\) === "k"/);
-  assert.match(source, /\["paused", "stalled", "blocked"\]\.includes\(currentWorkflow\.status\) \? callbacks\.resume\(\) : callbacks\.pause\(\)/);
+  assert.match(source, /\["paused", "stalled", "rate_limited", "human_required", "blocked"\]\.includes\(currentWorkflow\.status\) \? callbacks\.resume\(\) : callbacks\.pause\(\)/);
   assert.match(source, /workflowActionInFlight/);
 });
 

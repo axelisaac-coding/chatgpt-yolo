@@ -272,7 +272,7 @@
   }
 
   async function resumeWorkflow() {
-    if (!["paused", "stalled", "blocked"].includes(state.workflow.status)) return { ok: false, reason: "Workflow is not paused", keepOpen: true };
+    if (!["paused", "stalled", "rate_limited", "human_required", "blocked"].includes(state.workflow.status)) return { ok: false, reason: "Workflow is not paused", keepOpen: true };
     const next = Commands.normalizeWorkflow(state.workflow);
     next.status = "running";
     next.reason = "Resumed by user";
@@ -451,6 +451,12 @@
 
     if (workflow.pendingItemId) return handlePendingWorkflowItem(apiState);
     if (!workflow.awaitingResponse) return false;
+
+    const stopState = Platforms.workflowStopState(adapter(), apiState.settings || {}, document);
+    if (stopState) {
+      await markWorkflow(stopState.status, stopState.reason, stopState.code);
+      return true;
+    }
 
     if (apiState.generating) {
       if (!workflow.sawGeneration || workflow.responseCandidateFingerprint) {

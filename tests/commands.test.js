@@ -403,3 +403,15 @@ test("verification protocol retries are bounded and Loop DONE remains direct", (
   assert.equal(loopDone.action, "completed");
   assert.equal(loopDone.code, "command.workflow.completed");
 });
+
+test("provider-limit and human-required workflow states normalize as durable resumable stops", () => {
+  for (const status of ["rate_limited", "human_required"]) {
+    const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "finish", status, awaitingResponse: true, runnerId: "tab" });
+    assert.equal(workflow.status, status);
+    assert.equal(workflow.awaitingResponse, true);
+    const stopped = Commands.setWorkflowStatus(workflow, status, "manual state", 7000);
+    assert.equal(stopped.status, status);
+    assert.equal(stopped.awaitingResponse, false);
+    assert.equal(stopped.runnerId, "");
+  }
+});

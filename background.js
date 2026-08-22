@@ -14,7 +14,7 @@ const actionLock = Shared.createLock();
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
 const MAX_RETAINED_COMPLETED_WORKFLOWS = 100;
-const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "stalled", "blocked"]);
+const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "stalled", "rate_limited", "human_required", "blocked"]);
 const WORKFLOW_LEASE_MS = 2 * 60 * 1000;
 const WORKFLOW_RENEW_WINDOW_MS = 30 * 1000;
 

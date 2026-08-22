@@ -12,7 +12,7 @@
   const GOAL_MAX_ITERATIONS = 0;
   const WORKFLOW_SCHEMA_VERSION = 3;
   const SUPERVISOR_LIMITS = Object.freeze({ repeatedResponses: 2, noProgressResponses: 3, recoveryAttempts: 3, verificationAttempts: 2 });
-  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "completed", "blocked"]);
+  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "rate_limited", "human_required", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
   const TERMINAL_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;

@@ -386,8 +386,8 @@
       workflowTitle.textContent = currentWorkflow.objective;
       const waiting = currentWorkflow.pendingItemId ? "queued" : (currentWorkflow.awaitingResponse ? "waiting for response" : currentWorkflow.status);
       workflowSub.textContent = `${waiting} · iteration ${currentWorkflow.iteration}/${currentWorkflow.maxIterations}${currentWorkflow.reason ? ` · ${currentWorkflow.reason}` : ""}`;
-      pauseButton.textContent = ["paused", "stalled", "blocked"].includes(currentWorkflow.status) ? "Resume" : "Pause";
-      const actionable = ["running", "paused", "stalled", "blocked"].includes(currentWorkflow.status);
+      pauseButton.textContent = ["paused", "stalled", "rate_limited", "human_required", "blocked"].includes(currentWorkflow.status) ? "Resume" : "Pause";
+      const actionable = ["running", "paused", "stalled", "rate_limited", "human_required", "blocked"].includes(currentWorkflow.status);
       pauseButton.disabled = workflowActionInFlight || !actionable;
       editButton.disabled = workflowActionInFlight || !actionable;
       clearButton.disabled = workflowActionInFlight;
@@ -477,7 +477,7 @@
     }
 
     pauseButton.addEventListener("click", () => runWorkflowAction(() =>
-      ["paused", "stalled", "blocked"].includes(currentWorkflow.status) ? callbacks.resume() : callbacks.pause()));
+      ["paused", "stalled", "rate_limited", "human_required", "blocked"].includes(currentWorkflow.status) ? callbacks.resume() : callbacks.pause()));
     editButton.addEventListener("click", () => callbacks.edit(currentWorkflow));
     clearButton.addEventListener("click", () => runWorkflowAction(() => callbacks.stop(currentWorkflow)));
 

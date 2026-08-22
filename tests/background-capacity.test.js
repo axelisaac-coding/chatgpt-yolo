@@ -144,3 +144,19 @@ test("stalled workflows remain active and count toward conversation capacity", a
   assert.equal(overflow.ok, false);
   assert.equal(overflow.code, "workflow.conversation_limit");
 });
+
+test("provider and human stop states remain active for workflow capacity", async () => {
+  for (const terminalStatus of ["rate_limited", "human_required"]) {
+    const { invoke } = loadBackground();
+    for (let index = 0; index < 25; index += 1) {
+      const response = await invoke({
+        type: "YOLO_WORKFLOW_SET", pageId: `https://chatgpt.com/c/${terminalStatus}-${index}`, expectedRevision: 0,
+        workflow: { kind: "goal", objective: `${terminalStatus} ${index}`, status: terminalStatus }
+      });
+      assert.equal(response.ok, true);
+    }
+    const overflow = await invoke({ type: "YOLO_WORKFLOW_SET", pageId: `https://chatgpt.com/c/${terminalStatus}-overflow`, expectedRevision: 0, workflow: { kind: "goal", objective: "overflow", status: "running" } });
+    assert.equal(overflow.ok, false);
+    assert.equal(overflow.code, "workflow.conversation_limit");
+  }
+});

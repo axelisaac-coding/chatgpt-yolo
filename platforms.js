@@ -14,6 +14,8 @@
   const SENSITIVE_APPROVAL_RE = /\b(account access|connect account|sign in|credential|secret|token|oauth|scope|permission|grant access|repository access|private repository|private repo)\b/i;
   const EXECUTION_APPROVAL_RE = /\b(run command|execute|shell|terminal|bash|script|tool call)\b/i;
   const GITHUB_CONTEXT_RE = /\b(github|repository|pull request|issue|branch|commit|workflow|workspace|permission|tool call)\b/i;
+  const PROVIDER_LIMIT_RE = /\b(rate limit|usage limit|message limit|too many requests|reached (?:the |your )?(?:usage |message |model )?limit|limit resets?|try again in \d|available again in \d|come back later|temporarily unavailable due to (?:high )?demand|capacity limit|429)\b/i;
+  const HUMAN_REQUIRED_RE = /\b(confirm|approval|permission|authorize|sign in|log in|connect account|grant access|requires? (?:your )?(?:input|confirmation)|needs? (?:your )?(?:input|confirmation)|choose an option|select an option)\b/i;
 
   const ADAPTERS = Object.freeze({
     chatgpt: Object.freeze({
@@ -152,6 +154,20 @@
       const context = normalizedText(button.closest?.("[role='alert']") || button.parentElement || button);
       return /\bretry\b/i.test(buttonText(button)) && /\b(error|went wrong|try again|retry|failed)\b/i.test(context);
     }) || null;
+  }
+
+  function providerLimitState(adapter, documentLike = document) {
+    if (!adapter) return null;
+    const selectors = [...adapter.errorSelectors, "[role=\"dialog\"]", "[role=\"alertdialog\"]", "[role=\"status\"]"];
+    const candidates = uniqueElements(selectors.flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    for (const element of candidates) {
+      if (!visible(element)) continue;
+      const text = normalizedText(element);
+      if (PROVIDER_LIMIT_RE.test(text)) {
+        return { status: "rate_limited", code: "supervisor.rate_limited.provider", reason: text.slice(0, 500) || "Provider usage or rate limit reached" };
+      }
+    }
+    return null;
   }
 
   function normalizedMultilineText(element) {
@@ -346,6 +362,43 @@
     }).filter(Boolean);
   }
 
+  function humanRequiredState(adapter, settings = {}, documentLike = document) {
+    if (!adapter) return null;
+    const allApprovals = findApprovalCards(adapter, "all", documentLike);
+    if (allApprovals.length) {
+      const enabled = Boolean(settings.approvalsEnabled);
+      const policy = String(settings.approvalPolicy || "safe");
+      const allowed = enabled ? new Set(findApprovalCards(adapter, policy, documentLike).map((entry) => entry.signature)) : new Set();
+      const blocked = allApprovals.find((entry) => !allowed.has(entry.signature));
+      if (blocked) {
+        return {
+          status: "human_required",
+          code: "supervisor.human_required.approval",
+          reason: `${blocked.risk || "unknown"} approval requires user action`
+        };
+      }
+    }
+
+    const dialogs = uniqueElements(["[role=\"dialog\"]", "[role=\"alertdialog\"]"]
+      .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    for (const dialog of dialogs) {
+      if (!visible(dialog)) continue;
+      const text = normalizedText(dialog);
+      if (!HUMAN_REQUIRED_RE.test(text)) continue;
+      const buttons = Array.from(dialog.querySelectorAll?.("button") || []).filter((button) => visible(button) && !isDisabled(button));
+      const hasNegative = buttons.some((button) => NEGATIVE_RE.test(buttonText(button)));
+      const hasAffirmative = buttons.some((button) => SAFE_APPROVAL_RE.test(buttonText(button)) || /\b(sign in|log in|connect|verify|choose|select)\b/i.test(buttonText(button)));
+      if (hasNegative && hasAffirmative) {
+        return { status: "human_required", code: "supervisor.human_required.dialog", reason: text.slice(0, 500) || "ChatGPT requires user interaction" };
+      }
+    }
+    return null;
+  }
+
+  function workflowStopState(adapter, settings = {}, documentLike = document) {
+    return providerLimitState(adapter, documentLike) || humanRequiredState(adapter, settings, documentLike);
+  }
+
   return Object.freeze({
     ADAPTERS,
     adapterForLocation,
@@ -357,6 +410,9 @@
     findSendButton,
     isGenerating,
     findErrorState,
+    providerLimitState,
+    humanRequiredState,
+    workflowStopState,
     latestAssistantText,
     latestUserText,
     userMessageSnapshot,
