@@ -343,3 +343,8 @@ Phase F attempt 2 confirmed checkpoint 023 loaded and the authenticated durable 
 Runtime commit: `9660785ff423471696866fada0046aef6b0a2687`. Full suite 383/383; focused command/runtime gate 91/91; all release/package/asset/diff gates pass. Runtime digest `83AF4B14DEBEDF560D38137A46E0073826E8888B85D0565D7FB863C9450230E1`.
 Source checkpoint SHA-256 `754826E197D4644FC3D4F91C081BF0074742E1A078EDD9E90EBA6C9C14D6B0E7`; browser candidate SHA-256 `380E7CA9649A4DDEE32958DDF160FCA2194305E2F5563D09386B6756BD56B863`; browser/live parity 39/39 with zero differences.
 Exact next action: Reload the installed unpacked extension (same live folder), refresh the saved conversation, retry the full `/goal Live rollover qualification: ...` command, and require it to be intercepted before continuing proactive rollover qualification. No formal live PASS is claimed yet.
+## Phase F live checkpoint-024 evidence — Goal start verified
+- TEST ONLY draft/prerelease: `https://github.com/axelisaac-coding/chatgpt-yolo/releases/tag/untagged-c482418ca76d57d29f98` (tagged to runtime `9660785ff423471696866fada0046aef6b0a2687`).
+- Real authenticated ChatGPT composer accepted the checkpoint-024 command interception fix: `/goal <objective>` did not pass through as an ordinary user command.
+- YOLO created the Goal workflow and delivered its generated marker-driven Goal prompt into the saved source conversation.
+- This verifies command start only; proactive handoff, New Chat, successor bootstrap/binding, lineage advance, and restart recovery remain pending live evidence.

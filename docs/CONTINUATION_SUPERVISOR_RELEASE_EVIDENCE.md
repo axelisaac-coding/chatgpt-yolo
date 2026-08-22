@@ -81,3 +81,8 @@ Post-fix evidence is automated only: 382/382 full tests, 52/52 focused live-defe
 Authenticated queue delivery on checkpoint 023 was observed once end-to-end with exact user/assistant token `YOLO-LIVE-QUEUE-OK`. The subsequent full `/goal ...` qualification command escaped as an ordinary ChatGPT message instead of starting the workflow, so Phase F remained failed/blocked rather than promoted.
 Checkpoint 024 fixes the public command-submission boundary: recognized YOLO slash commands are intercepted on composer form `submit` in capture phase in addition to keydown. Full deterministic suite passes 383/383; focused command/runtime gate passes 91/91. Exact runtime digest: `83AF4B14DEBEDF560D38137A46E0073826E8888B85D0565D7FB863C9450230E1`.
 This is automated remediation evidence only. R9 remains **AUTH LIVE REQUIRED** until the corrected runtime is reloaded and the complete rollover path is actually observed.
+### Authenticated live evidence — checkpoint 024 Goal start
+- Checkpoint 024 command interception was exercised on the real authenticated ChatGPT composer after extension Reload.
+- `/goal <objective>` was intercepted and converted into the generated persistent Goal prompt; it did not fall through as the slash command itself.
+- The generated Goal prompt is visible in the saved source conversation and the workflow is active.
+- R6/R7/R8/R9 remain not fully qualified until the real proactive rollover and successor lifecycle complete.
