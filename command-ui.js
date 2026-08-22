@@ -385,7 +385,9 @@
       workflowBadge.textContent = currentWorkflow.kind;
       workflowTitle.textContent = currentWorkflow.objective;
       const waiting = currentWorkflow.pendingItemId ? "queued" : (currentWorkflow.awaitingResponse ? "waiting for response" : currentWorkflow.status);
-      workflowSub.textContent = `${waiting} · iteration ${currentWorkflow.iteration}/${currentWorkflow.maxIterations}${currentWorkflow.reason ? ` · ${currentWorkflow.reason}` : ""}`;
+      const phase = Commands.workflowPhase(currentWorkflow);
+      const cycle = Commands.workflowIterationLabel(currentWorkflow);
+      workflowSub.textContent = `${waiting} · ${cycle} · ${phase}${currentWorkflow.reason ? ` · ${currentWorkflow.reason}` : ""}`;
       pauseButton.textContent = ["paused", "stalled", "rate_limited", "human_required", "blocked"].includes(currentWorkflow.status) ? "Resume" : "Pause";
       const actionable = ["running", "paused", "stalled", "rate_limited", "human_required", "blocked"].includes(currentWorkflow.status);
       pauseButton.disabled = workflowActionInFlight || !actionable;

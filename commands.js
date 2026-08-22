@@ -304,6 +304,22 @@
     return workflow;
   }
 
+  function workflowPhase(raw) {
+    const workflow = normalizeWorkflow(raw);
+    if (workflow.status === "idle") return "idle";
+    if (workflow.supervisor.verificationPending) return "verification";
+    if (workflow.supervisor.recoveryAttempts > 0 || workflow.supervisor.recoveryReason) return "recovery";
+    return "work";
+  }
+
+  function workflowIterationLabel(raw) {
+    const workflow = normalizeWorkflow(raw);
+    if (workflow.status === "idle") return "none";
+    if (workflow.kind === "loop") return `iteration ${workflow.iteration}/${workflow.maxIterations}`;
+    const activeOffset = workflow.status === "running" && (workflow.pendingItemId || workflow.awaitingResponse) ? 1 : 0;
+    return `continuation ${Math.max(1, workflow.iteration + activeOffset)}`;
+  }
+
   function goalInitialPrompt(workflow) {
     return [
       "You are now working in YOLO Goal mode.",
@@ -601,6 +617,8 @@
     normalizeWorkflow,
     startWorkflow,
     setWorkflowStatus,
+    workflowPhase,
+    workflowIterationLabel,
     workflowPrompt,
     evaluateResponse,
     evaluateProgress,

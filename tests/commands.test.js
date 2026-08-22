@@ -465,3 +465,15 @@ test("Goal prompts teach the explicit progress evidence protocol", () => {
   assert.match(Commands.workflowPrompt(workflow, "continue"), /YOLO:NO_PROGRESS/);
   assert.match(Commands.workflowPrompt(workflow, "recovery"), /persisted\/verified progress/);
 });
+
+test("workflow observability derives phase and truthful cycle labels", () => {
+  const goal = Commands.normalizeWorkflow({ kind: "goal", objective: "ship", status: "running", iteration: 7, awaitingResponse: true });
+  assert.equal(Commands.workflowPhase(goal), "work");
+  assert.equal(Commands.workflowIterationLabel(goal), "continuation 8");
+  goal.supervisor.recoveryAttempts = 1;
+  assert.equal(Commands.workflowPhase(goal), "recovery");
+  goal.supervisor.verificationPending = true;
+  assert.equal(Commands.workflowPhase(goal), "verification");
+  const loop = Commands.normalizeWorkflow({ kind: "loop", objective: "iterate", status: "running", iteration: 3, maxIterations: 8 });
+  assert.equal(Commands.workflowIterationLabel(loop), "iteration 3/8");
+});

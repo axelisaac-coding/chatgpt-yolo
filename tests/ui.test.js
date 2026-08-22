@@ -298,3 +298,18 @@ test("slash actions expose only viable product semantics", () => {
   assert.match(readme, /not native ChatGPT commands/i);
   assert.match(readme, /does \*\*not\*\* compact or alter ChatGPT context/i);
 });
+
+test("workflow observability exposes phase, cycle, progress, and circuit breakers", () => {
+  const runtime = read("command-runtime.js");
+  const ui = read("command-ui.js");
+  assert.match(runtime, /Phase:.*Commands.workflowPhase/);
+  assert.match(runtime, /Cycle:.*Commands.workflowIterationLabel/);
+  assert.match(runtime, /Progress evidence/);
+  assert.match(runtime, /No progress/);
+  assert.match(runtime, /Repeated response/);
+  assert.match(runtime, /Recovery/);
+  assert.match(runtime, /Verification/);
+  assert.match(ui, /Commands\.workflowPhase\(currentWorkflow\)/);
+  assert.match(ui, /Commands\.workflowIterationLabel\(currentWorkflow\)/);
+  assert.equal(ui.includes('iteration ${currentWorkflow.iteration}/${currentWorkflow.maxIterations}'), false);
+});

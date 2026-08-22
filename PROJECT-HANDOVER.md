@@ -134,3 +134,17 @@ Improve Supervisor observability/status UI before browser endurance testing. Sho
 
 ## Progress estimate
 ~73% overall after checkpoint 009. Core orchestration behavior is largely implemented: persistent uncapped Goal, durable queue delivery, abnormal-ending recovery, recovery/repeat/no-progress circuit breakers, evidence-verified completion, provider-limit pause, and human-required pause. Observability/UI, packaging/release docs, endurance/browser validation, and hardening from those tests remain.
+## Implementation checkpoint 010
+Added truthful Supervisor observability before endurance testing. `commands.js` now exposes pure `workflowPhase()` and `workflowIterationLabel()` derivations so compact chrome and `/status` share one interpretation of workflow state. Phase resolves to work, recovery, or verification from persisted Supervisor state.
+
+Persistent Goal no longer displays the misleading `iteration N/0`; it displays a continuation count, while bounded Loop retains `iteration N/max`. `/status` now exposes workflow status, phase, objective, cycle, whether progress evidence exists, no-progress/repeat/recovery/verification counters against their configured thresholds, current reason, queue state, runner ownership, generation state, profile, session action count, and last action. It does not expose the authored progress evidence text/fingerprint.
+
+The compact workflow chrome now shows queue/wait/status, truthful cycle label, phase, and current reason while preserving existing pause/resume/edit/stop behavior and accessibility.
+
+Validation: focused commands/UI tests pass 63/63. Broad non-environmental suite passes 269/269. `npm run check`, `npm run verify:extension` (38 packaged files), package check, no-bare-installs, and `git diff --check` pass. Baseline-only Windows CRLF and unavailable-ffprobe exclusions remain unchanged.
+
+## Current exact next step
+Add deterministic endurance/state-transition simulation before real browser endurance testing. Exercise hundreds or thousands of unique productive Goal continuations beyond the old 50-turn boundary, state normalization/restart at high iteration counts, missing-marker recovery and recovery-limit stalling, repeated-response stalling, changed-prose/same-progress evidence stalling, completion verification success/failure/retry, provider/human durable stop normalization/resume, and bounded Loop behavior. Verify state/history remains bounded and no latent turn-count ceiling remains. Then package a browser-test candidate and update release/user documentation.
+
+## Progress estimate
+~78% overall after checkpoint 010. Core Supervisor orchestration and observability are implemented with broad regression coverage. Deterministic endurance simulation, browser-test packaging/documentation, real ChatGPT endurance/failure-mode validation, and any hardening discovered there remain.
