@@ -284,3 +284,24 @@ test("workflow response decisions persist assistant repetition bookkeeping", () 
   assert.equal(decision.workflow.supervisor.lastResponseFingerprint, responseFingerprint);
   assert.equal(decision.workflow.supervisor.repeatedResponseCount, 1);
 });
+
+test("goal workflows enter a recoverable stalled state after repeated identical responses", () => {
+  const text = "No new progress.\n[YOLO:CONTINUE]";
+  const responseFingerprint = Commands.fingerprint(text);
+  const workflow = Commands.normalizeWorkflow({
+    kind: "goal",
+    objective: "finish",
+    status: "running",
+    awaitingResponse: true,
+    promptFingerprint: "owned",
+    supervisor: { lastResponseFingerprint: responseFingerprint, repeatedResponseCount: 1 }
+  });
+  const decision = Commands.decideWorkflowResponse(workflow, text, { userFingerprint: "owned", at: 3000 });
+  assert.equal(decision.action, "stalled");
+  assert.equal(decision.code, "supervisor.stalled.repeated_response");
+  assert.equal(decision.workflow.supervisor.repeatedResponseCount, 2);
+  const stalled = Commands.setWorkflowStatus(decision.workflow, "stalled", decision.reason, 3100);
+  assert.equal(stalled.status, "stalled");
+  assert.equal(stalled.awaitingResponse, false);
+  assert.equal(stalled.runnerId, "");
+});

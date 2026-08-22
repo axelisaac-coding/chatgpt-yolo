@@ -12,7 +12,7 @@
   const GOAL_MAX_ITERATIONS = 0;
   const WORKFLOW_SCHEMA_VERSION = 2;
   const SUPERVISOR_LIMITS = Object.freeze({ repeatedResponses: 2, noProgressResponses: 3, recoveryAttempts: 3 });
-  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);
+  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
   const TERMINAL_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
@@ -391,6 +391,12 @@
         reason: `Reached the ${workflow.maxIterations}-iteration safety cap`,
         code: "command.workflow.cap_reached"
       };
+    }
+    if (workflow.kind === "goal") {
+      const disposition = supervisorDisposition(workflow.supervisor);
+      if (disposition.action === "stalled") {
+        return { workflow, action: "stalled", reason: disposition.reason, code: disposition.code };
+      }
     }
     return { workflow, action: "continue", reason: "Continue workflow", code: "command.workflow.continue" };
   }

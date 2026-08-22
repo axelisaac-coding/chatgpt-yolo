@@ -272,7 +272,7 @@
   }
 
   async function resumeWorkflow() {
-    if (!["paused", "blocked"].includes(state.workflow.status)) return { ok: false, reason: "Workflow is not paused", keepOpen: true };
+    if (!["paused", "stalled", "blocked"].includes(state.workflow.status)) return { ok: false, reason: "Workflow is not paused", keepOpen: true };
     const next = Commands.normalizeWorkflow(state.workflow);
     next.status = "running";
     next.reason = "Resumed by user";

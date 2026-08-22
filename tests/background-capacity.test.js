@@ -123,3 +123,24 @@ test("corrupt template ids are repaired and duplicate ids are removed on read", 
   assert.equal(response.templates.every((template) => template.id.trim().length > 0), true);
   assert.equal(new Set(response.templates.map((template) => template.id)).size, 2);
 });
+
+test("stalled workflows remain active and count toward conversation capacity", async () => {
+  const { invoke } = loadBackground();
+  for (let index = 0; index < 25; index += 1) {
+    const response = await invoke({
+      type: "YOLO_WORKFLOW_SET",
+      pageId: `https://chatgpt.com/c/stalled-${index}`,
+      expectedRevision: 0,
+      workflow: { kind: "goal", objective: `stalled ${index}`, status: "stalled" }
+    });
+    assert.equal(response.ok, true);
+  }
+  const overflow = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId: "https://chatgpt.com/c/stalled-overflow",
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "new work", status: "running" }
+  });
+  assert.equal(overflow.ok, false);
+  assert.equal(overflow.code, "workflow.conversation_limit");
+});

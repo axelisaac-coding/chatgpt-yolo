@@ -132,14 +132,14 @@ test("command palette preserves failed direct commands and exposes feedback", ()
   assert.match(source, /role", "status"/);
   assert.match(source, /originalComposerText/);
   assert.match(source, /Commands\.requiresArgs\(entry\.name\)/);
-  assert.match(source, /\["paused", "blocked"\]\.includes\(currentWorkflow\.status\)/);
+  assert.match(source, /\["paused", "stalled", "blocked"\]\.includes\(currentWorkflow\.status\)/);
 });
 
 test("command UI handles blocked resume, IME, and shortcut scope safely", () => {
   const source = read("command-ui.js");
   assert.match(source, /destroyed \|\| event\.isComposing/);
   assert.match(source, /composerTarget && event\.key\.toLowerCase\(\) === "k"/);
-  assert.match(source, /\["paused", "blocked"\]\.includes\(currentWorkflow\.status\) \? callbacks\.resume\(\) : callbacks\.pause\(\)/);
+  assert.match(source, /\["paused", "stalled", "blocked"\]\.includes\(currentWorkflow\.status\) \? callbacks\.resume\(\) : callbacks\.pause\(\)/);
   assert.match(source, /workflowActionInFlight/);
 });
 
