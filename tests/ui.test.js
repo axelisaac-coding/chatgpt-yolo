@@ -146,6 +146,8 @@ test("command UI handles blocked resume, IME, and shortcut scope safely", () => 
 test("runtime uses pure workflow decisions, recovery prompts, and the completion ring", () => {
   const runtime = read("command-runtime.js");
   assert.match(runtime, /Commands\.decideWorkflowResponse/);
+  assert.match(runtime, /decision\.action === "verify"/);
+  assert.match(runtime, /Commands\.workflowPrompt\(state\.workflow, "verification"\)/);
   assert.match(runtime, /decision\.action === "recover"/);
   assert.match(runtime, /Commands\.workflowPrompt\(state\.workflow, "recovery"\)/);
   assert.match(runtime, /queue\.state\.completions\.some/);

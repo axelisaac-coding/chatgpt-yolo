@@ -222,7 +222,7 @@ test("goal workflows remain productive beyond the legacy 50-turn cap while loops
   assert.equal(loopDecision.code, "command.workflow.cap_reached");
 });
 
-test("workflow schema v2 migrates legacy state with safe supervisor defaults", () => {
+test("workflow schema v3 migrates legacy state with safe supervisor defaults", () => {
   const workflow = Commands.normalizeWorkflow({
     version: 1,
     kind: "goal",
@@ -348,4 +348,58 @@ test("goal recovery attempts are bounded and reset after a valid control marker"
   const recovered = Commands.decideWorkflowResponse({ ...workflow, supervisor: { ...workflow.supervisor, recoveryAttempts: 2 }, awaitingResponse: true }, "recovered\n[YOLO:CONTINUE]", { userFingerprint: "owned", at: 2000 });
   assert.equal(recovered.action, "continue");
   assert.equal(recovered.workflow.supervisor.recoveryAttempts, 0);
+});
+
+test("goal completion claims require evidence verification before completion", () => {
+  const workflow = Commands.normalizeWorkflow({
+    kind: "goal", objective: "finish", status: "running", awaitingResponse: true, promptFingerprint: "owned"
+  });
+  const claimText = "Everything is done.\n[YOLO:DONE]";
+  const claim = Commands.decideWorkflowResponse(workflow, claimText, { userFingerprint: "owned", at: 3000 });
+  assert.equal(claim.action, "verify");
+  assert.equal(claim.code, "supervisor.verify.requested");
+  assert.equal(claim.workflow.supervisor.verificationPending, true);
+  assert.equal(claim.workflow.supervisor.verificationAttempts, 1);
+  assert.equal(claim.workflow.supervisor.verificationClaimFingerprint, Commands.fingerprint(claimText));
+
+  const prompt = Commands.workflowPrompt(claim.workflow, "verification");
+  assert.match(prompt, /Do not trust the completion claim by default/);
+  assert.match(prompt, /durable project state/);
+  assert.match(prompt, /\[YOLO:DONE\] only if the objective is verified complete/);
+});
+
+test("verified Goal completion completes, while incomplete verification returns to work", () => {
+  const base = Commands.normalizeWorkflow({
+    kind: "goal", objective: "finish", status: "running", awaitingResponse: true, promptFingerprint: "owned",
+    supervisor: { verificationPending: true, verificationAttempts: 1, verificationClaimFingerprint: "claim" }
+  });
+  const verified = Commands.decideWorkflowResponse(base, "Evidence checked.\n[YOLO:DONE]", { userFingerprint: "owned", at: 4000 });
+  assert.equal(verified.action, "completed");
+  assert.equal(verified.code, "supervisor.completed.verified");
+  assert.equal(verified.workflow.supervisor.verificationPending, false);
+  assert.equal(verified.workflow.supervisor.verificationAttempts, 0);
+
+  const incomplete = Commands.decideWorkflowResponse(base, "One validation remains.\n[YOLO:CONTINUE]", { userFingerprint: "owned", at: 4100 });
+  assert.equal(incomplete.action, "continue");
+  assert.equal(incomplete.code, "supervisor.verification.incomplete");
+  assert.equal(incomplete.workflow.supervisor.verificationPending, false);
+});
+
+test("verification protocol retries are bounded and Loop DONE remains direct", () => {
+  let verifying = Commands.normalizeWorkflow({
+    kind: "goal", objective: "finish", status: "running", awaitingResponse: true, promptFingerprint: "owned",
+    supervisor: { verificationPending: true, verificationAttempts: 1, verificationClaimFingerprint: "claim" }
+  });
+  const retry = Commands.decideWorkflowResponse(verifying, "verification without marker", { userFingerprint: "owned", at: 5000 });
+  assert.equal(retry.action, "verify");
+  assert.equal(retry.workflow.supervisor.verificationAttempts, 2);
+  verifying = { ...retry.workflow, status: "running", awaitingResponse: true, promptFingerprint: "owned" };
+  const stalled = Commands.decideWorkflowResponse(verifying, "still no marker", { userFingerprint: "owned", at: 5100 });
+  assert.equal(stalled.action, "stalled");
+  assert.equal(stalled.code, "supervisor.stalled.verification_limit");
+
+  const loop = Commands.normalizeWorkflow({ kind: "loop", objective: "review", status: "running", awaitingResponse: true, promptFingerprint: "owned", maxIterations: 4 });
+  const loopDone = Commands.decideWorkflowResponse(loop, "Complete.\n[YOLO:DONE]", { userFingerprint: "owned", at: 5200 });
+  assert.equal(loopDone.action, "completed");
+  assert.equal(loopDone.code, "command.workflow.completed");
 });

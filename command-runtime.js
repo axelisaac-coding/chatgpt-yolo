@@ -277,7 +277,8 @@
     next.status = "running";
     next.reason = "Resumed by user";
     next.updatedAt = now();
-    const prompt = Commands.workflowPrompt(next, next.iteration === 0 ? "initial" : "continue");
+    const phase = next.supervisor.verificationPending ? "verification" : (next.iteration === 0 ? "initial" : "continue");
+    const prompt = Commands.workflowPrompt(next, phase);
     return queuePrompt(prompt, { workflow: next, source: `workflow:${next.kind}` });
   }
 
@@ -371,6 +372,12 @@
     });
     state.workflow = decision.workflow;
     if (decision.action === "ignore") return false;
+    if (decision.action === "verify") {
+      const prompt = Commands.workflowPrompt(state.workflow, "verification");
+      const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
+      if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not queue the completion verification prompt", "supervisor.verify.queue_failed");
+      return true;
+    }
     if (decision.action === "recover") {
       const prompt = Commands.workflowPrompt(state.workflow, "recovery");
       const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });

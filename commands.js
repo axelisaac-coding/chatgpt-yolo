@@ -10,8 +10,8 @@
   const MAX_ITERATIONS = 50;
   const DEFAULT_MAX_ITERATIONS = 12;
   const GOAL_MAX_ITERATIONS = 0;
-  const WORKFLOW_SCHEMA_VERSION = 2;
-  const SUPERVISOR_LIMITS = Object.freeze({ repeatedResponses: 2, noProgressResponses: 3, recoveryAttempts: 3 });
+  const WORKFLOW_SCHEMA_VERSION = 3;
+  const SUPERVISOR_LIMITS = Object.freeze({ repeatedResponses: 2, noProgressResponses: 3, recoveryAttempts: 3, verificationAttempts: 2 });
   const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
@@ -100,11 +100,16 @@
       repeatedResponseCount: 0,
       noProgressCount: 0,
       recoveryAttempts: 0,
+      verificationPending: false,
+      verificationAttempts: 0,
+      verificationClaimFingerprint: "",
       lastResponseFingerprint: "",
       lastProgressFingerprint: "",
       lastProgressAt: 0,
       lastRecoveryAt: 0,
-      recoveryReason: ""
+      lastVerificationAt: 0,
+      recoveryReason: "",
+      verificationReason: ""
     };
   }
 
@@ -115,11 +120,16 @@
       repeatedResponseCount: Math.max(0, Math.round(finite(raw.repeatedResponseCount, 0))),
       noProgressCount: Math.max(0, Math.round(finite(raw.noProgressCount, 0))),
       recoveryAttempts: Math.max(0, Math.round(finite(raw.recoveryAttempts, 0))),
+      verificationPending: Boolean(raw.verificationPending),
+      verificationAttempts: Math.max(0, Math.round(finite(raw.verificationAttempts, 0))),
+      verificationClaimFingerprint: cleanText(raw.verificationClaimFingerprint, 180),
       lastResponseFingerprint: cleanText(raw.lastResponseFingerprint, 180),
       lastProgressFingerprint: cleanText(raw.lastProgressFingerprint, 180),
       lastProgressAt: Math.max(0, finite(raw.lastProgressAt, 0)),
       lastRecoveryAt: Math.max(0, finite(raw.lastRecoveryAt, 0)),
-      recoveryReason: cleanText(raw.recoveryReason, 500)
+      lastVerificationAt: Math.max(0, finite(raw.lastVerificationAt, 0)),
+      recoveryReason: cleanText(raw.recoveryReason, 500),
+      verificationReason: cleanText(raw.verificationReason, 500)
     };
   }
 
@@ -149,6 +159,19 @@
       state.recoveryAttempts += 1;
       state.lastRecoveryAt = at;
       state.recoveryReason = cleanText(observation.recoveryReason, 500);
+    }
+    if (observation.verificationResolved) {
+      state.verificationPending = false;
+      state.verificationAttempts = 0;
+      state.verificationClaimFingerprint = "";
+      state.verificationReason = "";
+    }
+    if (observation.verificationStarted) {
+      state.verificationPending = true;
+      state.verificationAttempts += 1;
+      state.lastVerificationAt = at;
+      state.verificationClaimFingerprint = cleanText(observation.verificationClaimFingerprint, 180);
+      state.verificationReason = cleanText(observation.verificationReason, 500);
     }
     return state;
   }
@@ -311,6 +334,17 @@
     ].join("\n\n");
   }
 
+  function goalVerificationPrompt(workflow) {
+    const attempt = Math.max(1, workflow.supervisor.verificationAttempts);
+    return [
+      `Verify completion for this persistent objective: ${workflow.objective}`,
+      `Verification attempt ${attempt} of ${SUPERVISOR_LIMITS.verificationAttempts}. A prior work turn claimed the objective was complete.`,
+      "Do not trust the completion claim by default. Inspect the actual conversation and durable project state, files, artifacts, logs, tests, unresolved errors, TODOs, and explicit requirements available through your tools.",
+      "Compare the evidence against the full persistent objective. If any required work, validation, preservation, or blocker remains, continue the project rather than declaring success.",
+      "At the very end emit exactly one marker on its own line: [YOLO:DONE] only if the objective is verified complete; [YOLO:CONTINUE] if work remains; [YOLO:BLOCKED] only when specific user input or unavailable access is genuinely required."
+    ].join("\n\n");
+  }
+
   function loopInitialPrompt(workflow) {
     return [
       "You are now working in YOLO Loop mode.",
@@ -336,6 +370,7 @@
     if (workflow.kind === "goal") {
       if (phase === "initial") return goalInitialPrompt(workflow);
       if (phase === "recovery") return goalRecoveryPrompt(workflow);
+      if (phase === "verification") return goalVerificationPrompt(workflow);
       return goalContinuationPrompt(workflow);
     }
     return phase === "initial" ? loopInitialPrompt(workflow) : loopContinuationPrompt(workflow);
@@ -378,10 +413,45 @@
     workflow.iteration += 1;
     workflow.updatedAt = at;
     const outcome = evaluateResponse(text);
+    const verifyingCompletion = workflow.kind === "goal" && workflow.supervisor.verificationPending;
     if (["continue", "done", "blocked"].includes(outcome) && workflow.supervisor.recoveryAttempts > 0) {
       workflow.supervisor = observeSupervisorState(workflow.supervisor, { recoveryResolved: true }, at);
     }
 
+    if (verifyingCompletion) {
+      if (outcome === "done") {
+        workflow.supervisor = observeSupervisorState(workflow.supervisor, { verificationResolved: true }, at);
+        return { workflow, action: "completed", reason: "Completion was verified against durable project evidence", code: "supervisor.completed.verified" };
+      }
+      if (outcome === "continue") {
+        workflow.supervisor = observeSupervisorState(workflow.supervisor, { verificationResolved: true }, at);
+        return { workflow, action: "continue", reason: "Completion verification found remaining work", code: "supervisor.verification.incomplete" };
+      }
+      if (outcome === "blocked") {
+        workflow.supervisor = observeSupervisorState(workflow.supervisor, { verificationResolved: true }, at);
+        return { workflow, action: "blocked", reason: "Completion verification requires user input or unavailable access", code: "supervisor.verification.blocked" };
+      }
+      if (["missing", "malformed"].includes(outcome)) {
+        if (workflow.supervisor.verificationAttempts >= SUPERVISOR_LIMITS.verificationAttempts) {
+          return { workflow, action: "stalled", reason: "Completion verification protocol failed repeatedly", code: "supervisor.stalled.verification_limit" };
+        }
+        workflow.supervisor = observeSupervisorState(workflow.supervisor, {
+          verificationStarted: true,
+          verificationClaimFingerprint: workflow.supervisor.verificationClaimFingerprint,
+          verificationReason: `Verification response was ${outcome}`
+        }, at);
+        return { workflow, action: "verify", reason: "Retry completion verification after an invalid verification response", code: `supervisor.verify.${outcome}` };
+      }
+    }
+
+    if (outcome === "done" && workflow.kind === "goal") {
+      workflow.supervisor = observeSupervisorState(workflow.supervisor, {
+        verificationStarted: true,
+        verificationClaimFingerprint: responseFingerprint,
+        verificationReason: "Goal reported completion; independent verification required"
+      }, at);
+      return { workflow, action: "verify", reason: "Goal reported completion; verify durable evidence before accepting it", code: "supervisor.verify.requested" };
+    }
     if (outcome === "done") {
       return { workflow, action: "completed", reason: "ChatGPT reported the objective complete", code: "command.workflow.completed" };
     }

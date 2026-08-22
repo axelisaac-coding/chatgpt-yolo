@@ -90,3 +90,17 @@ Implement completion verification for persistent Goal mode. A single model-emitt
 
 ## Progress estimate
 ~46% overall after checkpoint 006. The original manual-Continue failure mode now has an implemented, bounded, regression-tested automatic recovery path. Completion verification, provider/human stop classification, richer progress evidence, dashboard/status UI, packaging/release hardening, and real ChatGPT endurance/failure-mode validation remain.
+## Implementation checkpoint 007
+Added evidence-based completion verification for persistent Goal mode and advanced the workflow schema to v3. A first `[YOLO:DONE]` from ordinary Goal work no longer completes the workflow. It starts a persisted verification phase, records the completion-claim fingerprint, and queues a dedicated verification prompt through the same durable workflow queue.
+
+The verification prompt tells ChatGPT not to trust the completion claim by default; to inspect the actual conversation plus durable project files, artifacts, logs, tests, unresolved errors, TODOs, and explicit requirements available through tools; and to compare that evidence against the full persistent objective. Verification uses the existing terminal markers with stricter semantics: `[YOLO:DONE]` means verified complete, `[YOLO:CONTINUE]` means verification found remaining work and the Goal returns to normal execution, and `[YOLO:BLOCKED]` means verification discovered a genuine human/access blocker. Bounded Loop mode retains its existing direct DONE semantics.
+
+Verification protocol failures are bounded independently from recovery. Supervisor state now persists verificationPending, verificationAttempts, verificationClaimFingerprint, lastVerificationAt, and verificationReason. The configured verification-attempt limit is 2. A missing/malformed verification response triggers one verification retry; repeated protocol failure transitions to `stalled`. Resuming a stalled/paused workflow while verification is pending re-enters verification rather than silently returning to ordinary continuation.
+
+Validation: focused commands/UI tests pass 56/56 after final hygiene cleanup. Broad non-environmental suite passed with no functional failures; `npm run check`, extension boundary verification, package check, no-bare-installs, and `git diff --check` pass. The two known baseline environment-only exclusions remain unchanged: Windows CRLF assertion in portability-integration and ffprobe-dependent MP4 tests.
+
+## Current exact next step
+Add explicit stop classification for provider/rate/usage-limit states and human-required interaction states so the Supervisor does not mistake those surfaces for missing-marker recovery opportunities. The extension must pause safely on ChatGPT/provider limits and never claim to bypass subscription/model/rate restrictions. Human-required decisions/confirmations should become an explicit non-automatic state with clear reason/status. Keep these detections deterministic and adapter/platform isolated where possible.
+
+## Progress estimate
+~57% overall after checkpoint 007. Persistent continuation, bounded abnormal-ending recovery, repeat-response circuit breaking, and evidence-based completion verification are implemented. Provider/human stop classification, richer progress evidence/no-progress observation wiring, dashboard/status UI, packaging/release documentation, and real ChatGPT endurance/failure-mode validation remain.
