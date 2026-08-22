@@ -227,3 +227,17 @@ Commit/push checkpoint 016, create source ZIP/hash, build a new candidate ZIP/ha
 
 ## Progress estimate
 ~97% overall after checkpoint 016. The remaining gap is increasingly concentrated in authenticated live ChatGPT evidence rather than deterministic implementation or packaging reliability.
+## Browser smoke checkpoint 017
+Re-ran current-public-site compatibility against the new runtime candidate built from `9c71fcc`. Microsoft Edge 151.0.4129.93 loaded the unpacked candidate in a brand-new isolated profile; the packaged onboarding page and `background-wrapper.js` Manifest V3 service worker were active. On the current public ChatGPT page, the candidate injected its shadow-DOM host and the real ChatGPT composer opened the YOLO slash palette with all 13 expected actions.
+
+The current unauthenticated public ChatGPT UI now exposes a guest composer. A single harmless direct smoke prompt (`Reply exactly: TEST-OK`) was sent through ChatGPT's own guest composer and returned `TEST-OK`, proving current user/assistant message DOM observation works in this isolated browser. The guest exchange remained on transient `https://chatgpt.com/`; ChatGPT did not assign a durable `/c/<conversation-id>` route. Therefore it cannot exercise YOLO's durable background queue by design.
+
+The extension `/status` command was then executed from the live slash palette on that transient page. It added no new ChatGPT user message, left the composer empty, and reported Workflow None / Queue Unavailable, confirming the non-durable route fails closed rather than pretending queue persistence exists. This remains public/guest smoke only and must not be counted as authenticated saved-conversation queue-delivery evidence.
+
+Candidate `Continuation-Supervisor-browser-candidate-9c71fcc.zip` is the active test runtime, SHA-256 `25DD1485EAEF8B108CC6D2FE6029B03DFCB4328D08E335D1BA9106D453D056DB`. It was built from exact commit `9c71fcc4c3a9e753dadb2332ba6b496249bbe1f5` and verified 38/38 files byte-for-byte against `dist/yolo` before upload to a draft/prerelease TEST ONLY release.
+
+## Current exact next step
+Preserve this browser evidence in Git/source checkpoint, then continue only deterministic hardening that can honestly reduce the remaining AUTH LIVE REQUIRED rows. The principal unresolved gate remains an authenticated durable `/c/<conversation-id>` conversation with actual YOLO queue delivery, response observation, refresh/restart, missing-marker recovery, stop-state/verification behavior, and a long elapsed unattended run.
+
+## Progress estimate
+~98% implementation/evidence completion, with formal release still blocked by authenticated durable-conversation and elapsed endurance evidence rather than known core implementation defects.

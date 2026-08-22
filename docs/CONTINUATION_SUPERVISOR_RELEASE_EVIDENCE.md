@@ -32,13 +32,15 @@ Legend:
 
 ## Public browser smoke evidence
 
-Candidate runtime source: `fdf2114`.
+Candidate runtime source: `9c71fcc`.
 
-Candidate SHA-256: `7CDB245ED5B78A3099EAFD370B3B1D873AE6A3FEE6B43CB5C34B071C03EE3F26`.
+Candidate SHA-256: `25DD1485EAEF8B108CC6D2FE6029B03DFCB4328D08E335D1BA9106D453D056DB`.
 
-Microsoft Edge 151.0.4129.93 loaded the unpacked candidate in a new isolated profile. The candidate's `background-wrapper.js` Manifest V3 service worker was active, the packaged onboarding page opened, and the current public `https://chatgpt.com/` page received the YOLO command/workflow/status shadow-DOM host. All 13 expected commands were present. The packaged service-worker context reported Goal sentinel `0`, schema `3`, and Supervisor limits `2 / 3 / 3 / 2`.
+Microsoft Edge 151.0.4129.93 loaded the unpacked candidate in a new isolated profile. The candidate's `background-wrapper.js` Manifest V3 service worker was active, the packaged onboarding page opened, and the current public `https://chatgpt.com/` page received the YOLO shadow-DOM host. The real current ChatGPT composer opened the extension slash palette with all 13 expected commands.
 
-The isolated profile was not authenticated and the public page had no ChatGPT composer. This smoke evidence therefore does not claim message delivery, saved-conversation workflow execution, or long-duration autonomous continuation.
+The public guest composer accepted one harmless direct smoke prompt (`Reply exactly: TEST-OK`) and ChatGPT returned `TEST-OK`, demonstrating the current page/composer/response DOM can be observed in this isolated profile. ChatGPT kept the guest conversation on transient `https://chatgpt.com/` rather than assigning a durable `/c/<conversation-id>` route. The extension `/status` command then ran without adding another user message and reported the transient conversation with Queue unavailable, which is the intended fail-closed boundary for non-durable automation.
+
+The isolated profile was not authenticated. The direct guest prompt was not a YOLO durable-queue send. This smoke evidence therefore does not claim message delivery by the YOLO durable queue, saved-conversation workflow execution, authenticated recovery/verification, or long-duration autonomous continuation.
 
 ## Baseline environment exclusions
 
