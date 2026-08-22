@@ -77,3 +77,18 @@ test("release package carries user-facing legal and privacy documents", () => {
     assert.match(packager, new RegExp(`"${file.replace(".", "\\.")}"`), file);
   }
 });
+
+test("Continuation Supervisor documentation is truthful about persistent Goal and release status", () => {
+  const readme = read("README.md");
+  const releaseReadme = read("README.release.md");
+  const protocol = read("docs/CONTINUATION_SUPERVISOR_TESTING.md");
+  assert.match(readme, /Goal mode has no arbitrary total-turn ceiling/i);
+  assert.match(readme, /rate_limited/);
+  assert.match(readme, /human_required/);
+  assert.doesNotMatch(readme, /Run a bounded persistent objective|Nothing runs unbounded/);
+  assert.match(releaseReadme, /development candidate/i);
+  assert.match(releaseReadme, /not yet a formal release/i);
+  assert.match(releaseReadme, /does not require the OpenAI API/i);
+  assert.match(protocol, /approximately 15 hours/i);
+  assert.match(protocol, /Do not deliberately manufacture or circumvent provider usage\/rate limits/i);
+});

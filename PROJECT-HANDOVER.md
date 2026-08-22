@@ -160,3 +160,16 @@ Build a concrete unpacked/browser-test candidate from the validated branch and u
 
 ## Progress estimate
 ~83% overall after checkpoint 011. Core state-machine behavior, observability, and deterministic long-run/restart simulation are implemented and broadly regression-tested. Browser-test packaging/documentation, real ChatGPT endurance/failure-mode validation, and hardening from observed browser behavior remain.
+
+## Implementation checkpoint 012
+Rebuilt the documentation/browser-candidate increment cleanly from authoritative commit `31b0456`, discarding all prior uncommitted documentation scratch work first. `README.md` now truthfully distinguishes persistent Goal supervision from bounded Loop automation and no longer claims Goal is bounded or that "nothing runs unbounded." It documents explicit progress/no-progress evidence, repeat/no-progress/recovery circuit breakers, the conservative two-minute missing-marker recovery quiet window, evidence-based completion verification, `rate_limited`, `human_required`, Supervisor `/status`, and the rule that this extension never bypasses ChatGPT subscription/model/rate/usage/access/safety limits.
+
+`README.release.md` now identifies the package as a Continuation Supervisor development/browser-test candidate rather than directing users to upstream v1.1.0, which does not include this fork's Supervisor behavior. A new `docs/CONTINUATION_SUPERVISOR_TESTING.md` defines reproducible candidate preparation, live-interface smoke testing, persistent Goal progression, refresh/tab/service-worker/browser restart, multi-tab ownership, missing-marker recovery, stagnation/progress evidence, completion verification, provider/human stops, network/delivery failure resilience, and an approximately 15-hour long-duration release gate. The protocol explicitly forbids manufacturing or circumventing provider limits.
+
+Documentation truthfulness regression coverage was added to `tests/release.test.js`. Focused release/package/UI validation passes 45/45. Broad non-environmental validation passes 277/277; `npm run check`, `npm run verify:extension` (38 packaged files), `npm run package -- --check`, `node scripts/no-bare-installs.mjs`, and `git diff --check` pass. The two known baseline environment-only exclusions remain unchanged: Windows CRLF exact portability assertion and ffprobe-dependent MP4 validation cases.
+
+## Current exact next step
+Commit/push this documentation checkpoint and create its source checkpoint ZIP. Then run `npm run package`, create a hash-labelled browser-test candidate ZIP from the exact `dist/yolo` contents, record its SHA-256, and assess whether this environment has safe access to an already-authenticated browser for live ChatGPT testing. Do not risk the user's browser profile or fabricate live-browser evidence; if authenticated browser control is unavailable, preserve that as an external blocker and continue maximizing deterministic/fixture validation.
+
+## Progress estimate
+~88% overall after checkpoint 012 documentation validation. Core Supervisor behavior, observability, deterministic 1,000-continuation endurance coverage, and browser-test procedures are implemented. Remaining work is exact candidate packaging, live current-ChatGPT smoke/endurance validation where safely possible, and hardening from any observed live-interface failures.

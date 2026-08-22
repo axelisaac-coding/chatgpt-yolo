@@ -1,8 +1,8 @@
 # YOLO for ChatGPT
 
-**Queue the next steps. Run bounded workflows. Stop babysitting long ChatGPT conversations.**
+**Queue the next steps. Run persistent Goals and bounded Loops. Stop babysitting long ChatGPT conversations.**
 
-A local-first Chromium extension that adds persistent instruction queues, composer-native actions, and visible, bounded automation to ChatGPT.
+A local-first Chromium extension that adds persistent instruction queues, composer-native actions, persistent Goal supervision, bounded Loop automation, and visible safety controls to ChatGPT.
 
 > **Independent project:** YOLO is not affiliated with or endorsed by OpenAI. It does not use the OpenAI API, run a backend, inject remote code, or collect telemetry.
 
@@ -25,9 +25,9 @@ Long ChatGPT tasks still make you come back just to keep them moving — to send
 
 Add, reorder, edit, pause, retry, and safely deliver future instructions — per conversation, persisted locally.
 
-### Run bounded workflows
+### Run persistent Goals and bounded Loops
 
-Use `/goal` and `/loop` with visible state, explicit limits, and Pause/Edit/Stop controls. Nothing runs unbounded.
+Use `/goal` for persistent, progress-aware objectives and `/loop` for explicitly bounded iterations, both with visible state and Pause/Edit/Stop controls. Goal mode has no arbitrary total-turn ceiling while meaningful progress continues; circuit breakers, recovery limits, completion verification, provider-limit pauses, and human-required stops keep it fail-closed.
 
 ### Stay in control
 
@@ -40,7 +40,7 @@ Protect drafts, avoid duplicate sends, and pause when delivery becomes ambiguous
 YOLO adds four layers to ChatGPT:
 
 1. **A persistent queue** for instructions that should run when the conversation is ready.
-2. **Composer-native actions** for bounded workflows, prompt shortcuts, and extension controls.
+2. **Composer-native actions** for persistent Goal supervision, bounded Loops, prompt shortcuts, and extension controls.
 3. **Safety controls** for approvals, recovery, nudges, stale tabs, and ambiguous delivery.
 4. **A focused interface** that keeps everyday actions simple and moves detailed controls into Advanced settings.
 
@@ -77,7 +77,7 @@ See [Product direction](docs/PRODUCT_DIRECTION.md) for the principles, non-goals
 For repository work, the strongest setup pairs YOLO with **ChatGPT's GitHub app** (previously called the GitHub connector). The two are independent:
 
 - **ChatGPT's GitHub app** provides repository context and, where your plan, app permissions, and enabled tools support it, repository actions.
-- **YOLO** maintains the queue and bounded sequence of prompts inside the ChatGPT conversation.
+- **YOLO** maintains the durable queue and supervised sequence of prompts inside the ChatGPT conversation.
 
 To set it up:
 
@@ -86,7 +86,7 @@ To set it up:
 3. Find and connect **GitHub**.
 4. Authorize only the repositories you want ChatGPT to access.
 5. Select or invoke GitHub in the relevant conversation where necessary.
-6. Then use YOLO to queue and bound the sequence of work.
+6. Then use YOLO to queue and supervise the sequence of work.
 
 > With GitHub connected, ChatGPT can inspect repository context and, where supported and authorized, help work through issues, code changes, reviews, and pull requests. YOLO keeps the sequence of instructions moving inside the conversation.
 
@@ -102,7 +102,7 @@ Ask ChatGPT to inspect a repository issue or goal, then queue the follow-up step
 4. *Fix concrete findings.*
 5. *Summarize the final state and remaining risks.*
 
-A bounded `/goal` or `/loop` can wrap the iterative middle of this sequence so it advances turn by turn with visible limits. Available GitHub capabilities vary by plan, mode, permissions, and rollout — YOLO does not add or change them; it only coordinates the next prompts.
+A persistent `/goal` or bounded `/loop` can wrap the iterative middle of this sequence so it advances turn by turn with visible state and safety controls. Available GitHub capabilities vary by plan, mode, permissions, and rollout - YOLO does not add or change them; it only coordinates the next prompts.
 
 ---
 
@@ -114,11 +114,11 @@ A bounded `/goal` or `/loop` can wrap the iterative middle of this sequence so i
 ![YOLO command palette showing /goal, /loop, /review, and /continue in the ChatGPT composer](docs/assets/screenshot-command-palette.webp)
 *Composer-native YOLO actions from `/` or `Cmd/Ctrl + Shift + P`.*
 
-![Active bounded workflow showing objective, iteration state, and Pause, Edit, and Stop controls](docs/assets/screenshot-workflow.webp)
-*Bounded workflows show the objective, remaining iterations, and explicit controls.*
+![Active workflow showing objective, continuation or iteration state, and Pause, Edit, and Stop controls](docs/assets/screenshot-workflow.webp)
+*Persistent Goals show continuation state; bounded Loops show iteration limits. Both keep explicit controls visible.*
 
 ![ChatGPT with the GitHub app connected while YOLO manages the queued follow-up prompts](docs/assets/screenshot-github-workflow.webp)
-*Connect GitHub to ChatGPT for repository context. YOLO keeps the next steps queued and bounded.*
+*Connect GitHub to ChatGPT for repository context. YOLO keeps the next steps queued and supervised.*
 
 ![Advanced settings showing profiles, approvals off by default, recovery, and local data controls](docs/assets/screenshot-settings.webp)
 *Advanced settings keep detailed controls — profiles, approvals, recovery, limits, and local data — out of the everyday path.*
@@ -129,38 +129,33 @@ A bounded `/goal` or `/loop` can wrap the iterative middle of this sequence so i
 
 [![YOLO for ChatGPT — 44.5 s demo](docs/assets/demo-poster.webp)](marketing/video/hyperframes/yolo-launch-16x9.mp4)
 
-A 44.5-second walkthrough of queuing the next steps and running a bounded workflow inside a long ChatGPT conversation.  
+A 44.5-second upstream walkthrough of queuing the next steps and running a workflow inside a long ChatGPT conversation. This fork extends Goal mode with persistent continuation, recovery, progress evidence, and completion verification.
 [Download 16:9 MP4](marketing/video/hyperframes/yolo-launch-16x9.mp4) · [Download 1:1 square MP4](marketing/video/hyperframes/yolo-launch-square.mp4)
 
 ---
 
 ## Install
 
-### From a release archive (recommended)
+### Continuation Supervisor development fork
 
-Download the latest `yolo-v1.1.0.zip` from the [Releases](https://github.com/kartikkabadi/chatgpt-yolo/releases) page, unzip it, and load the `yolo` folder as an unpacked extension:
+The Continuation Supervisor changes on this branch are not yet a formal release. Upstream `v1.1.0` is the clean YOLO baseline and does **not** contain the persistent Goal, recovery, verification, or progress-evidence behavior documented below.
 
-1. Open `chrome://extensions` in Chrome, Edge, Brave, Arc, or another Chromium browser.
-2. Enable **Developer mode**.
-3. Select **Load unpacked** and choose the unzipped `yolo` folder.
-4. Open or refresh a ChatGPT conversation.
-
-Release archives are built and attested by GitHub Actions. You can verify the attestation with:
+For the current browser-test candidate, build this fork from `continuation-supervisor-development` and load the generated `dist/yolo` directory:
 
 ```bash
-gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
-```
-
-### From source (optional)
-
-```bash
-git clone https://github.com/kartikkabadi/chatgpt-yolo.git
+git clone https://github.com/axelisaac-coding/chatgpt-yolo.git
 cd chatgpt-yolo
-npm run validate:core
+git switch continuation-supervisor-development
+npm run check
 npm run package
 ```
 
-Then load `dist/yolo` as an unpacked extension.
+1. Open `chrome://extensions` in Chrome, Edge, Brave, Arc, or another Chromium browser.
+2. Enable **Developer mode**.
+3. Select **Load unpacked** and choose `dist/yolo`.
+4. Open or refresh a saved ChatGPT conversation.
+
+Formal release archives and attestations should be created only after the live ChatGPT endurance/failure-mode test matrix passes.
 
 ## First run
 
@@ -181,7 +176,7 @@ These are **YOLO extension actions**, not native ChatGPT commands. Automated wor
 
 | Action | Purpose |
 | --- | --- |
-| `/goal <objective>` | Run a bounded persistent objective. Every turn must end with `[YOLO:CONTINUE]`, `[YOLO:DONE]`, or `[YOLO:BLOCKED]`. |
+| `/goal <objective>` | Run a persistent, progress-aware objective with bounded recovery/stagnation safeguards and completion verification. |
 | `/loop [count] <objective>` | Run bounded iterations. Missing or malformed terminal markers pause the loop instead of guessing. |
 
 ### Prompt shortcuts
@@ -201,6 +196,20 @@ These are **YOLO extension actions**, not native ChatGPT commands. Automated wor
 | `/status` | Show workflow, queue, runner, generation, profile, limits, and last action. |
 | `/pause`, `/resume`, `/stop` | Pause, resume, or stop and clear the active workflow. |
 | `/settings`, `/help` | Open Advanced settings or the action palette. |
+
+### Continuation Supervisor behavior
+
+Persistent Goal mode is designed for long projects that should keep moving while meaningful progress continues:
+
+- Goal mode has no arbitrary total-turn ceiling; bounded Loop mode remains hard-capped at 50 iterations.
+- Goal continuation responses use `[YOLO:PROGRESS:<checkpoint>]` for genuinely new persisted/verified progress or `[YOLO:NO_PROGRESS]` when no durable progress was made.
+- Two repeated identical responses, three no-progress observations, or three consecutive recovery failures move the Goal to a recoverable `stalled` state instead of looping indefinitely.
+- A stable Goal response that omits its terminal marker enters bounded recovery after a conservative two-minute quiet window. Recovery tells ChatGPT to inspect durable state and never assume an interrupted operation succeeded.
+- A first Goal `[YOLO:DONE]` starts completion verification. The Goal completes only after an evidence-based verification response reports `[YOLO:DONE]`; verification protocol failure is bounded to two attempts.
+- Explicit ChatGPT/provider rate or usage limits pause the workflow as `rate_limited`. YOLO does not bypass or work around subscription, model, rate, usage, access, or safety limits.
+- Approval, permission, sign-in, or confirmation surfaces that exceed the configured automation policy pause the workflow as `human_required`.
+- `/status` shows work/recovery/verification phase, truthful Goal continuation or Loop iteration count, progress presence, circuit-breaker counters, stop reason, queue, runner, generation, profile, and last action.
+- `stalled`, `rate_limited`, `human_required`, `blocked`, and manually paused workflows remain durable and can be resumed after the cause is resolved.
 
 Only standalone terminal markers control automated workflows. Inline marker-shaped text is ignored.
 
@@ -272,7 +281,7 @@ npm run package
 
 `npm run package` creates a clean, allowlisted extension directory at `dist/yolo`. It packages only runtime files plus the README, MIT license, notice, and privacy policy; it excludes tests, repository metadata, contributor documentation, and development scripts.
 
-Architecture and invariants are documented in [Architecture](docs/ARCHITECTURE.md) and the [Reliability model](docs/RELIABILITY_MODEL.md). Contributions must preserve fail-closed delivery, durable conversation scoping, mandatory draft protection, bounded automation, and the content-script order in `manifest.json`.
+Architecture and invariants are documented in [Architecture](docs/ARCHITECTURE.md) and the [Reliability model](docs/RELIABILITY_MODEL.md). Contributions must preserve fail-closed delivery, durable conversation scoping, mandatory draft protection, bounded safety controls, and the content-script order in `manifest.json`.
 
 ## Release verification
 
