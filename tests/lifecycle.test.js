@@ -18,10 +18,10 @@ test("hydration waits for a real composer and a quiet DOM", () => {
   assert.equal(Lifecycle.hydrationCandidate({ documentReadyState: "complete", composerPresent: true, lastDomActivityAt: 3000, now: 5000 }), true);
 });
 
-test("missing workflow markers require a long quiet window", () => {
+test("missing workflow markers require a conservative recovery quiet window", () => {
   assert.equal(Lifecycle.responseStableMs("continue"), 15000);
   assert.equal(Lifecycle.responseStableMs("done"), 15000);
-  assert.equal(Lifecycle.responseStableMs("missing"), 3 * 60 * 60 * 1000);
+  assert.equal(Lifecycle.responseStableMs("missing"), 2 * 60 * 1000);
 });
 
 test("scheduled refresh fails closed around work and recent activity", () => {

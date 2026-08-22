@@ -17,7 +17,7 @@
   const INPUT_SETTLE_MS = 1_500;
   const POST_GENERATION_HOLD_MS = 15_000;
   const MARKER_RESPONSE_STABLE_MS = 15_000;
-  const MISSING_MARKER_RESPONSE_STABLE_MS = 3 * 60 * 60 * 1_000;
+  const MISSING_MARKER_RESPONSE_STABLE_MS = 2 * 60 * 1_000;
   const REFRESH_QUIET_MS = 60_000;
 
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;

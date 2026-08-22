@@ -152,22 +152,35 @@ test("awaiting workflows retain and clear response stability candidates safely",
   assert.equal(paused.responseCandidateSince, 0);
 });
 
-test("both automated workflows pause when the terminal marker is missing", () => {
-  for (const kind of ["goal", "loop"]) {
-    const workflow = Commands.normalizeWorkflow({
-      kind,
-      objective: "ship",
-      status: "running",
-      awaitingResponse: true,
-      promptFingerprint: "owned"
-    }, 1000);
-    const decision = Commands.decideWorkflowResponse(workflow, "work without a terminal marker", {
-      userFingerprint: "owned",
-      at: 1100
-    });
-    assert.equal(decision.action, "paused");
-    assert.equal(decision.code, "command.workflow.marker_missing");
-  }
+test("missing terminal markers recover persistent goals but still pause bounded loops", () => {
+  const goal = Commands.normalizeWorkflow({
+    kind: "goal",
+    objective: "ship",
+    status: "running",
+    awaitingResponse: true,
+    promptFingerprint: "owned"
+  }, 1000);
+  const goalDecision = Commands.decideWorkflowResponse(goal, "work without a terminal marker", {
+    userFingerprint: "owned",
+    at: 1100
+  });
+  assert.equal(goalDecision.action, "recover");
+  assert.equal(goalDecision.code, "supervisor.recover.marker_missing");
+  assert.equal(goalDecision.workflow.supervisor.recoveryAttempts, 1);
+
+  const loop = Commands.normalizeWorkflow({
+    kind: "loop",
+    objective: "ship",
+    status: "running",
+    awaitingResponse: true,
+    promptFingerprint: "owned"
+  }, 1000);
+  const loopDecision = Commands.decideWorkflowResponse(loop, "work without a terminal marker", {
+    userFingerprint: "owned",
+    at: 1100
+  });
+  assert.equal(loopDecision.action, "paused");
+  assert.equal(loopDecision.code, "command.workflow.marker_missing");
 });
 
 test("both automated workflows pause on multiple or misplaced markers", () => {
@@ -304,4 +317,35 @@ test("goal workflows enter a recoverable stalled state after repeated identical 
   assert.equal(stalled.status, "stalled");
   assert.equal(stalled.awaitingResponse, false);
   assert.equal(stalled.runnerId, "");
+});
+
+test("goal recovery prompt requires durable-state verification before continuation", () => {
+  const workflow = Commands.startWorkflow("goal", "finish the long project").workflow;
+  workflow.supervisor.recoveryAttempts = 2;
+  const prompt = Commands.workflowPrompt(workflow, "recovery");
+  assert.match(prompt, /Recovery attempt 2 of 3/);
+  assert.match(prompt, /Do not assume the interrupted operation completed/);
+  assert.match(prompt, /last verified completed operation/);
+  assert.match(prompt, /first incomplete or uncertain operation/);
+  assert.match(prompt, /\[YOLO:CONTINUE\]/);
+});
+
+test("goal recovery attempts are bounded and reset after a valid control marker", () => {
+  let workflow = Commands.normalizeWorkflow({
+    kind: "goal", objective: "finish", status: "running", awaitingResponse: true, promptFingerprint: "owned"
+  });
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const decision = Commands.decideWorkflowResponse(workflow, `unfinished response ${attempt}`, { userFingerprint: "owned", at: 1000 + attempt });
+    assert.equal(decision.action, "recover");
+    assert.equal(decision.workflow.supervisor.recoveryAttempts, attempt);
+    workflow = { ...decision.workflow, status: "running", awaitingResponse: true, promptFingerprint: "owned" };
+  }
+  const third = Commands.decideWorkflowResponse(workflow, "unfinished response 3", { userFingerprint: "owned", at: 1003 });
+  assert.equal(third.action, "stalled");
+  assert.equal(third.code, "supervisor.stalled.recovery_limit");
+  assert.equal(third.workflow.supervisor.recoveryAttempts, 3);
+
+  const recovered = Commands.decideWorkflowResponse({ ...workflow, supervisor: { ...workflow.supervisor, recoveryAttempts: 2 }, awaitingResponse: true }, "recovered\n[YOLO:CONTINUE]", { userFingerprint: "owned", at: 2000 });
+  assert.equal(recovered.action, "continue");
+  assert.equal(recovered.workflow.supervisor.recoveryAttempts, 0);
 });

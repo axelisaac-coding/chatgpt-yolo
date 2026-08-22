@@ -371,6 +371,12 @@
     });
     state.workflow = decision.workflow;
     if (decision.action === "ignore") return false;
+    if (decision.action === "recover") {
+      const prompt = Commands.workflowPrompt(state.workflow, "recovery");
+      const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
+      if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not queue the workflow recovery prompt", "supervisor.recover.queue_failed");
+      return true;
+    }
     if (decision.action !== "continue") {
       await markWorkflow(decision.action, decision.reason, decision.code);
       return true;

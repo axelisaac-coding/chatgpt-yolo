@@ -141,6 +141,10 @@
     } else if (observation.progressed === false) {
       state.noProgressCount += 1;
     }
+    if (observation.recoveryResolved) {
+      state.recoveryAttempts = 0;
+      state.recoveryReason = "";
+    }
     if (observation.recoveryAttempted) {
       state.recoveryAttempts += 1;
       state.lastRecoveryAt = at;
@@ -296,6 +300,17 @@
     ].join("\n\n");
   }
 
+  function goalRecoveryPrompt(workflow) {
+    const attempt = Math.max(1, workflow.supervisor.recoveryAttempts);
+    return [
+      `Recover YOLO Goal mode for this persistent objective: ${workflow.objective}`,
+      `Recovery attempt ${attempt} of ${SUPERVISOR_LIMITS.recoveryAttempts}. The previous turn ended without the required terminal control marker.`,
+      "Do not assume the interrupted operation completed. Inspect the actual conversation and any durable project state, files, logs, tests, or artifacts available through your tools. Identify the last verified completed operation and the first incomplete or uncertain operation.",
+      "Recover from that exact point. Re-run or verify uncertain work where necessary, preserve/checkpoint meaningful results as soon as practical, and then continue toward the persistent objective without repeating prior commentary.",
+      "At the very end, emit exactly one marker on its own line: [YOLO:CONTINUE], [YOLO:DONE], or [YOLO:BLOCKED]."
+    ].join("\n\n");
+  }
+
   function loopInitialPrompt(workflow) {
     return [
       "You are now working in YOLO Loop mode.",
@@ -318,7 +333,11 @@
   function workflowPrompt(raw, phase = "initial") {
     const workflow = normalizeWorkflow(raw);
     if (workflow.status === "idle") return "";
-    if (workflow.kind === "goal") return phase === "initial" ? goalInitialPrompt(workflow) : goalContinuationPrompt(workflow);
+    if (workflow.kind === "goal") {
+      if (phase === "initial") return goalInitialPrompt(workflow);
+      if (phase === "recovery") return goalRecoveryPrompt(workflow);
+      return goalContinuationPrompt(workflow);
+    }
     return phase === "initial" ? loopInitialPrompt(workflow) : loopContinuationPrompt(workflow);
   }
 
@@ -359,6 +378,9 @@
     workflow.iteration += 1;
     workflow.updatedAt = at;
     const outcome = evaluateResponse(text);
+    if (["continue", "done", "blocked"].includes(outcome) && workflow.supervisor.recoveryAttempts > 0) {
+      workflow.supervisor = observeSupervisorState(workflow.supervisor, { recoveryResolved: true }, at);
+    }
 
     if (outcome === "done") {
       return { workflow, action: "completed", reason: "ChatGPT reported the objective complete", code: "command.workflow.completed" };
@@ -367,11 +389,30 @@
       return { workflow, action: "blocked", reason: "ChatGPT requested user input or unavailable access", code: "command.workflow.blocked" };
     }
     if (outcome === "missing") {
-      const label = workflow.kind === "goal" ? "Goal" : "Loop";
+      if (workflow.kind === "goal") {
+        workflow.supervisor = observeSupervisorState(workflow.supervisor, {
+          recoveryAttempted: true,
+          recoveryReason: "Goal response omitted the required terminal control marker"
+        }, at);
+        if (workflow.supervisor.recoveryAttempts >= SUPERVISOR_LIMITS.recoveryAttempts) {
+          return {
+            workflow,
+            action: "stalled",
+            reason: "Goal recovery attempts reached the safety limit after repeated missing terminal markers",
+            code: "supervisor.stalled.recovery_limit"
+          };
+        }
+        return {
+          workflow,
+          action: "recover",
+          reason: "Goal response ended without a terminal marker; recover from durable state before continuing",
+          code: "supervisor.recover.marker_missing"
+        };
+      }
       return {
         workflow,
         action: "paused",
-        reason: `${label} response omitted the required terminal control marker`,
+        reason: "Loop response omitted the required terminal control marker",
         code: "command.workflow.marker_missing"
       };
     }
