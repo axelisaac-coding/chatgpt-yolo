@@ -208,3 +208,79 @@ test("goal workflows remain productive beyond the legacy 50-turn cap while loops
   assert.equal(loopDecision.action, "paused");
   assert.equal(loopDecision.code, "command.workflow.cap_reached");
 });
+
+test("workflow schema v2 migrates legacy state with safe supervisor defaults", () => {
+  const workflow = Commands.normalizeWorkflow({
+    version: 1,
+    kind: "goal",
+    objective: "continue the project",
+    status: "running",
+    iteration: 73,
+    supervisor: null
+  }, 5000);
+  assert.equal(workflow.version, Commands.WORKFLOW_SCHEMA_VERSION);
+  assert.equal(workflow.iteration, 73);
+  assert.deepEqual(workflow.supervisor, Commands.freshSupervisorState());
+
+  const normalized = Commands.normalizeSupervisorState({
+    repeatedResponseCount: -4,
+    noProgressCount: 2.4,
+    recoveryAttempts: "2",
+    lastProgressAt: -10,
+    recoveryReason: " retry later "
+  });
+  assert.equal(normalized.repeatedResponseCount, 0);
+  assert.equal(normalized.noProgressCount, 2);
+  assert.equal(normalized.recoveryAttempts, 2);
+  assert.equal(normalized.lastProgressAt, 0);
+  assert.equal(normalized.recoveryReason, "retry later");
+});
+
+test("supervisor observations track repeats, progress, and recovery attempts", () => {
+  let state = Commands.freshSupervisorState();
+  state = Commands.observeSupervisorState(state, { responseFingerprint: "a" }, 1000);
+  assert.equal(state.repeatedResponseCount, 0);
+  state = Commands.observeSupervisorState(state, { responseFingerprint: "a", progressed: false }, 1100);
+  assert.equal(state.repeatedResponseCount, 1);
+  assert.equal(state.noProgressCount, 1);
+  state = Commands.observeSupervisorState(state, {
+    responseFingerprint: "b",
+    progressed: false,
+    recoveryAttempted: true,
+    recoveryReason: "missing marker"
+  }, 1200);
+  assert.equal(state.repeatedResponseCount, 0);
+  assert.equal(state.noProgressCount, 2);
+  assert.equal(state.recoveryAttempts, 1);
+  assert.equal(state.lastRecoveryAt, 1200);
+  assert.equal(state.recoveryReason, "missing marker");
+  state = Commands.observeSupervisorState(state, { responseFingerprint: "c", progressed: true }, 1300);
+  assert.equal(state.noProgressCount, 0);
+  assert.equal(state.recoveryAttempts, 0);
+  assert.equal(state.lastProgressAt, 1300);
+  assert.equal(state.lastProgressFingerprint, "c");
+});
+
+test("supervisor circuit breakers stall only at configured evidence thresholds", () => {
+  assert.equal(Commands.supervisorDisposition(Commands.freshSupervisorState()).action, "continue");
+  assert.equal(Commands.supervisorDisposition({ repeatedResponseCount: 2 }).code, "supervisor.stalled.repeated_response");
+  assert.equal(Commands.supervisorDisposition({ noProgressCount: 3 }).code, "supervisor.stalled.no_progress");
+  assert.equal(Commands.supervisorDisposition({ recoveryAttempts: 3 }).code, "supervisor.stalled.recovery_limit");
+});
+
+test("workflow response decisions persist assistant repetition bookkeeping", () => {
+  const text = "Still working.\n[YOLO:CONTINUE]";
+  const responseFingerprint = Commands.fingerprint(text);
+  const workflow = Commands.normalizeWorkflow({
+    kind: "goal",
+    objective: "finish",
+    status: "running",
+    awaitingResponse: true,
+    promptFingerprint: "owned",
+    supervisor: { lastResponseFingerprint: responseFingerprint, repeatedResponseCount: 0 }
+  });
+  const decision = Commands.decideWorkflowResponse(workflow, text, { userFingerprint: "owned", at: 2000 });
+  assert.equal(decision.action, "continue");
+  assert.equal(decision.workflow.supervisor.lastResponseFingerprint, responseFingerprint);
+  assert.equal(decision.workflow.supervisor.repeatedResponseCount, 1);
+});

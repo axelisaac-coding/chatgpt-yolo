@@ -192,14 +192,16 @@ test("background persists sender-bound command workflow state", async () => {
     type: "YOLO_WORKFLOW_SET",
     pageId,
     expectedRevision: 0,
-    workflow: { kind: "goal", objective: "Ship it", status: "running", maxIterations: 5 }
+    workflow: { kind: "goal", objective: "Ship it", status: "running", maxIterations: 5, supervisor: { noProgressCount: 2, lastProgressFingerprint: "checkpoint-a" } }
   }, sender);
   assert.equal(started.ok, true);
   assert.equal(started.workflow.kind, "goal");
 
   const loaded = await invoke({ type: "YOLO_WORKFLOW_GET", pageId }, sender);
   assert.equal(loaded.workflow.objective, "Ship it");
-  assert.equal(loaded.workflow.maxIterations, 5);
+  assert.equal(loaded.workflow.maxIterations, 0);
+  assert.equal(loaded.workflow.supervisor.noProgressCount, 2);
+  assert.equal(loaded.workflow.supervisor.lastProgressFingerprint, "checkpoint-a");
 
   const mismatch = await invoke(
     { type: "YOLO_WORKFLOW_GET", pageId },

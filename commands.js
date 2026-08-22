@@ -10,6 +10,8 @@
   const MAX_ITERATIONS = 50;
   const DEFAULT_MAX_ITERATIONS = 12;
   const GOAL_MAX_ITERATIONS = 0;
+  const WORKFLOW_SCHEMA_VERSION = 2;
+  const SUPERVISOR_LIMITS = Object.freeze({ repeatedResponses: 2, noProgressResponses: 3, recoveryAttempts: 3 });
   const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
@@ -93,9 +95,77 @@
     return `${value.length}:${(hash >>> 0).toString(36)}`;
   }
 
+  function freshSupervisorState() {
+    return {
+      repeatedResponseCount: 0,
+      noProgressCount: 0,
+      recoveryAttempts: 0,
+      lastResponseFingerprint: "",
+      lastProgressFingerprint: "",
+      lastProgressAt: 0,
+      lastRecoveryAt: 0,
+      recoveryReason: ""
+    };
+  }
+
+  function normalizeSupervisorState(raw = {}) {
+    const fallback = freshSupervisorState();
+    if (!raw || typeof raw !== "object") return fallback;
+    return {
+      repeatedResponseCount: Math.max(0, Math.round(finite(raw.repeatedResponseCount, 0))),
+      noProgressCount: Math.max(0, Math.round(finite(raw.noProgressCount, 0))),
+      recoveryAttempts: Math.max(0, Math.round(finite(raw.recoveryAttempts, 0))),
+      lastResponseFingerprint: cleanText(raw.lastResponseFingerprint, 180),
+      lastProgressFingerprint: cleanText(raw.lastProgressFingerprint, 180),
+      lastProgressAt: Math.max(0, finite(raw.lastProgressAt, 0)),
+      lastRecoveryAt: Math.max(0, finite(raw.lastRecoveryAt, 0)),
+      recoveryReason: cleanText(raw.recoveryReason, 500)
+    };
+  }
+
+  function observeSupervisorState(raw, observation = {}, at = Date.now()) {
+    const state = normalizeSupervisorState(raw);
+    const responseFingerprint = cleanText(observation.responseFingerprint, 180);
+    if (responseFingerprint) {
+      state.repeatedResponseCount = responseFingerprint === state.lastResponseFingerprint
+        ? state.repeatedResponseCount + 1
+        : 0;
+      state.lastResponseFingerprint = responseFingerprint;
+    }
+    if (observation.progressed === true) {
+      state.noProgressCount = 0;
+      state.lastProgressAt = at;
+      state.lastProgressFingerprint = cleanText(observation.progressFingerprint || responseFingerprint, 180);
+      state.recoveryAttempts = 0;
+      state.recoveryReason = "";
+    } else if (observation.progressed === false) {
+      state.noProgressCount += 1;
+    }
+    if (observation.recoveryAttempted) {
+      state.recoveryAttempts += 1;
+      state.lastRecoveryAt = at;
+      state.recoveryReason = cleanText(observation.recoveryReason, 500);
+    }
+    return state;
+  }
+
+  function supervisorDisposition(raw, limits = SUPERVISOR_LIMITS) {
+    const state = normalizeSupervisorState(raw);
+    if (state.repeatedResponseCount >= limits.repeatedResponses) {
+      return { action: "stalled", reason: "Repeated assistant responses exceeded the safety threshold", code: "supervisor.stalled.repeated_response" };
+    }
+    if (state.noProgressCount >= limits.noProgressResponses) {
+      return { action: "stalled", reason: "No-progress observations exceeded the safety threshold", code: "supervisor.stalled.no_progress" };
+    }
+    if (state.recoveryAttempts >= limits.recoveryAttempts) {
+      return { action: "stalled", reason: "Recovery attempts exceeded the safety threshold", code: "supervisor.stalled.recovery_limit" };
+    }
+    return { action: "continue", reason: "Supervisor circuit breakers are clear", code: "supervisor.continue" };
+  }
+
   function freshWorkflow(at = Date.now()) {
     return {
-      version: 1,
+      version: WORKFLOW_SCHEMA_VERSION,
       revision: 0,
       id: "",
       kind: "",
@@ -116,6 +186,7 @@
       lastPromptAt: 0,
       lastResponseAt: 0,
       reason: "",
+      supervisor: freshSupervisorState(),
       createdAt: at,
       updatedAt: at
     };
@@ -137,7 +208,7 @@
       };
     }
     return {
-      version: 1,
+      version: WORKFLOW_SCHEMA_VERSION,
       revision,
       id: cleanText(raw.id, 180) || makeId(kind),
       kind,
@@ -160,6 +231,7 @@
       lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),
       lastResponseAt: Math.max(0, finite(raw.lastResponseAt, 0)),
       reason: cleanText(raw.reason, 500),
+      supervisor: normalizeSupervisorState(raw.supervisor),
       createdAt: finite(raw.createdAt, at),
       updatedAt: finite(raw.updatedAt, at)
     };
@@ -280,7 +352,9 @@
     workflow.sawGeneration = false;
     workflow.responseCandidateFingerprint = "";
     workflow.responseCandidateSince = 0;
-    workflow.lastAssistantFingerprint = fingerprint(text);
+    const responseFingerprint = fingerprint(text);
+    workflow.lastAssistantFingerprint = responseFingerprint;
+    workflow.supervisor = observeSupervisorState(workflow.supervisor, { responseFingerprint }, at);
     workflow.lastResponseAt = at;
     workflow.iteration += 1;
     workflow.updatedAt = at;
@@ -367,6 +441,12 @@
     MAX_ITERATIONS,
     DEFAULT_MAX_ITERATIONS,
     GOAL_MAX_ITERATIONS,
+    WORKFLOW_SCHEMA_VERSION,
+    SUPERVISOR_LIMITS,
+    freshSupervisorState,
+    normalizeSupervisorState,
+    observeSupervisorState,
+    supervisorDisposition,
     command,
     filterCommands,
     parseInvocation,
