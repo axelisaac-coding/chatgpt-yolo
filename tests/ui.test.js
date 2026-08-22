@@ -100,6 +100,15 @@ test("command palette supports slash and YOLO command shortcuts", () => {
   assert.match(source, /ArrowUp/);
 });
 
+test("recognized slash commands are intercepted at the composer submit boundary", () => {
+  const source = read("command-ui.js");
+  assert.ok(source.includes("function interceptComposerInvocation"));
+  assert.ok(source.includes("if (!invocation) return false;"));
+  assert.ok(source.includes('document.addEventListener("submit", submit, true);'));
+  assert.ok(source.includes('document.removeEventListener("submit", submit, true);'));
+  assert.ok(source.includes("event.target === form"));
+});
+
 test("command workflows reuse the reliable queue and fail closed", () => {
   const runtime = read("command-runtime.js");
   const commands = read("commands.js");

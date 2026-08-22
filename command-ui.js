@@ -396,6 +396,23 @@
       position();
     }
 
+    function interceptComposerInvocation(event, text = callbacks.getComposerText()) {
+      const invocation = Commands.parseInvocation(text);
+      if (!invocation) return false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const originalComposerText = text;
+      callbacks.setComposerText("");
+      run(invocation.command, invocation.args, { originalComposerText });
+      return true;
+    }
+
+    function submit(event) {
+      if (destroyed) return;
+      const form = callbacks.getComposer()?.closest?.("form");
+      if (form && event.target === form) interceptComposerInvocation(event);
+    }
+
     function keydown(event) {
       if (destroyed || event.isComposing) return;
       const composerTarget = isComposerTarget(event.target);
@@ -416,17 +433,8 @@
           openPalette();
           return;
         }
-        if (event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          const invocation = Commands.parseInvocation(composerText);
-          if (invocation) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            const originalComposerText = composerText;
-            callbacks.setComposerText("");
-            run(invocation.command, invocation.args, { originalComposerText });
-            return;
-          }
-        }
+        if (event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
+          && interceptComposerInvocation(event, composerText)) return;
       }
 
       if (!open) {
@@ -484,6 +492,7 @@
     clearButton.addEventListener("click", () => runWorkflowAction(() => callbacks.stop(currentWorkflow)));
 
     document.addEventListener("keydown", keydown, true);
+    document.addEventListener("submit", submit, true);
     window.addEventListener("resize", position);
     window.addEventListener("scroll", position, true);
     renderList();
@@ -494,6 +503,7 @@
       destroyed = true;
       themeObserver.disconnect();
       document.removeEventListener("keydown", keydown, true);
+      document.removeEventListener("submit", submit, true);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
       host.remove();
