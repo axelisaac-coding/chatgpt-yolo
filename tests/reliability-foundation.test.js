@@ -81,7 +81,7 @@ test('workflow chrome dispatches the truthful stop action', () => {
 
 test('package and background composition include the action coordinator', () => {
   assert.match(read('scripts/package.mjs'), /"coordinator\.js"/);
-  assert.match(read('background.js'), /importScripts\("config\.js", "shared\.js", "coordinator\.js", "portable-store\.js", "queue\.js", "commands\.js"\)/);
+  assert.match(read('background.js'), /importScripts\("config\.js", "shared\.js", "coordinator\.js", "portable-store\.js", "queue\.js", "commands\.js", "projects\.js"\)/);
 });
 
 test('automatic dedupe identity is stable across cooldown boundaries', () => {

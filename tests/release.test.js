@@ -99,3 +99,13 @@ test("Continuation Supervisor release evidence preserves the authenticated live 
   assert.match(evidence, /authenticated saved-conversation browser pass/i);
   assert.match(evidence, /does not claim message delivery/i);
 });
+
+
+test("release evidence keeps conversation rollover incomplete until successor migration is proven", () => {
+  const evidence = read("docs/CONTINUATION_SUPERVISOR_RELEASE_EVIDENCE.md");
+  assert.match(evidence, /Conversation rollover development gate/i);
+  assert.match(evidence, /project\.conversation_exhausted/);
+  assert.match(evidence, /Automatic New Chat creation and verified successor/);
+  assert.match(evidence, /REQUIRED — NOT YET IMPLEMENTED/);
+  assert.match(evidence, /AUTH LIVE REQUIRED/);
+});

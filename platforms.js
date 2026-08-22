@@ -15,6 +15,8 @@
   const EXECUTION_APPROVAL_RE = /\b(run command|execute|shell|terminal|bash|script|tool call)\b/i;
   const GITHUB_CONTEXT_RE = /\b(github|repository|pull request|issue|branch|commit|workflow|workspace|permission|tool call)\b/i;
   const PROVIDER_LIMIT_RE = /\b(rate limit|usage limit|message limit|too many requests|reached (?:the |your )?(?:usage |message |model )?limit|limit resets?|try again in \d|available again in \d|come back later|temporarily unavailable due to (?:high )?demand|capacity limit|429)\b/i;
+  const CONVERSATION_EXHAUSTED_RE = /(?:\b(?:conversation|chat|thread)\b.{0,100}\b(?:maximum (?:length|size)|too long|length limit|context limit|reached (?:its|the) (?:maximum )?(?:length|limit)|is full)\b|\bmaximum (?:conversation|chat|thread) length\b|\bmaximum length\b.{0,60}\b(?:for|of) (?:this|the) (?:conversation|chat|thread)\b|\bcontext window\b.{0,80}\b(?:full|limit|maximum|exceeded)\b)/i;
+  const NEW_CHAT_CONTINUATION_RE = /\b(?:start|open|continue(?: this)? in)\b.{0,60}\b(?:new chat|new conversation)\b/i;
   const HUMAN_REQUIRED_RE = /\b(confirm|approval|permission|authorize|sign in|log in|connect account|grant access|requires? (?:your )?(?:input|confirmation)|needs? (?:your )?(?:input|confirmation)|choose an option|select an option)\b/i;
 
   const ADAPTERS = Object.freeze({
@@ -154,6 +156,23 @@
       const context = normalizedText(button.closest?.("[role='alert']") || button.parentElement || button);
       return /\bretry\b/i.test(buttonText(button)) && /\b(error|went wrong|try again|retry|failed)\b/i.test(context);
     }) || null;
+  }
+
+  function conversationLimitState(adapter, documentLike = document) {
+    if (!adapter) return null;
+    const selectors = [...adapter.errorSelectors, "[role=\"dialog\"]", "[role=\"alertdialog\"]", "[role=\"status\"]"];
+    const candidates = uniqueElements(selectors.flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    for (const element of candidates) {
+      if (!visible(element)) continue;
+      const text = normalizedText(element);
+      const exhaustion = CONVERSATION_EXHAUSTED_RE.test(text);
+      const newChatContinuation = NEW_CHAT_CONTINUATION_RE.test(text)
+        && /\b(?:conversation|chat|thread|context)\b.{0,100}\b(?:limit|long|length|full|maximum)\b/i.test(text);
+      if (exhaustion || newChatContinuation) {
+        return { status: "rollover_required", code: "supervisor.rollover_required.context_limit", reason: text.slice(0, 500) || "ChatGPT conversation context limit reached" };
+      }
+    }
+    return null;
   }
 
   function providerLimitState(adapter, documentLike = document) {
@@ -396,7 +415,7 @@
   }
 
   function workflowStopState(adapter, settings = {}, documentLike = document) {
-    return providerLimitState(adapter, documentLike) || humanRequiredState(adapter, settings, documentLike);
+    return conversationLimitState(adapter, documentLike) || providerLimitState(adapter, documentLike) || humanRequiredState(adapter, settings, documentLike);
   }
 
   return Object.freeze({
@@ -410,6 +429,7 @@
     findSendButton,
     isGenerating,
     findErrorState,
+    conversationLimitState,
     providerLimitState,
     humanRequiredState,
     workflowStopState,

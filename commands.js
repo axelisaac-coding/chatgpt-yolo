@@ -10,9 +10,9 @@
   const MAX_ITERATIONS = 50;
   const DEFAULT_MAX_ITERATIONS = 12;
   const GOAL_MAX_ITERATIONS = 0;
-  const WORKFLOW_SCHEMA_VERSION = 3;
+  const WORKFLOW_SCHEMA_VERSION = 4;
   const SUPERVISOR_LIMITS = Object.freeze({ repeatedResponses: 2, noProgressResponses: 3, recoveryAttempts: 3, verificationAttempts: 2 });
-  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "rate_limited", "human_required", "completed", "blocked"]);
+  const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "stalled", "rate_limited", "human_required", "rollover_required", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
   const TERMINAL_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
@@ -196,6 +196,7 @@
       version: WORKFLOW_SCHEMA_VERSION,
       revision: 0,
       id: "",
+      projectId: "",
       kind: "",
       objective: "",
       status: "idle",
@@ -239,6 +240,7 @@
       version: WORKFLOW_SCHEMA_VERSION,
       revision,
       id: cleanText(raw.id, 180) || makeId(kind),
+      projectId: cleanText(raw.projectId, 180),
       kind,
       objective,
       status,
@@ -307,6 +309,7 @@
   function workflowPhase(raw) {
     const workflow = normalizeWorkflow(raw);
     if (workflow.status === "idle") return "idle";
+    if (workflow.status === "rollover_required") return "rollover";
     if (workflow.supervisor.verificationPending) return "verification";
     if (workflow.supervisor.recoveryAttempts > 0 || workflow.supervisor.recoveryReason) return "recovery";
     return "work";

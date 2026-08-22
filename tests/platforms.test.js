@@ -184,3 +184,35 @@ test("approval surfaces outside configured automation policy require the human",
   assert.equal(Platforms.humanRequiredState(Platforms.ADAPTERS.chatgpt, { approvalsEnabled: true, approvalPolicy: "safe" }, doc).status, "human_required");
   assert.equal(Platforms.humanRequiredState(Platforms.ADAPTERS.chatgpt, { approvalsEnabled: true, approvalPolicy: "all" }, doc), null);
 });
+
+
+test("conversation context exhaustion is classified separately from provider limits", () => {
+  const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
+  const ownerDocument = { defaultView: view };
+  const surface = (text) => ({ nodeType: 1, ownerDocument, textContent: text, getBoundingClientRect: () => ({ width: 420, height: 90 }) });
+  const adapter = { errorSelectors: ["error"], supportsApprovals: false };
+  let element = surface("You've reached the maximum length for this conversation. Start a new chat to keep going.");
+  let doc = { querySelectorAll(selector) { return selector === "error" ? [element] : []; } };
+  const exhausted = Platforms.conversationLimitState(adapter, doc);
+  assert.equal(exhausted.status, "rollover_required");
+  assert.equal(exhausted.code, "supervisor.rollover_required.context_limit");
+  assert.equal(Platforms.workflowStopState(adapter, {}, doc).status, "rollover_required");
+
+  element = surface("You've reached your message limit. Try again in 25 minutes.");
+  assert.equal(Platforms.conversationLimitState(adapter, doc), null);
+  assert.equal(Platforms.workflowStopState(adapter, {}, doc).status, "rate_limited");
+});
+
+test("ordinary new-chat suggestions without exhaustion evidence do not trigger rollover", () => {
+  const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
+  const ownerDocument = { defaultView: view };
+  const element = {
+    nodeType: 1,
+    ownerDocument,
+    textContent: "You can start a new chat whenever you want.",
+    getBoundingClientRect: () => ({ width: 420, height: 90 })
+  };
+  const adapter = { errorSelectors: ["error"], supportsApprovals: false };
+  const doc = { querySelectorAll(selector) { return selector === "error" ? [element] : []; } };
+  assert.equal(Platforms.conversationLimitState(adapter, doc), null);
+});

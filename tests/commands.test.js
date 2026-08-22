@@ -222,7 +222,7 @@ test("goal workflows remain productive beyond the legacy 50-turn cap while loops
   assert.equal(loopDecision.code, "command.workflow.cap_reached");
 });
 
-test("workflow schema v3 migrates legacy state with safe supervisor defaults", () => {
+test("workflow schema v4 migrates legacy state with safe supervisor defaults", () => {
   const workflow = Commands.normalizeWorkflow({
     version: 1,
     kind: "goal",
@@ -233,6 +233,7 @@ test("workflow schema v3 migrates legacy state with safe supervisor defaults", (
   }, 5000);
   assert.equal(workflow.version, Commands.WORKFLOW_SCHEMA_VERSION);
   assert.equal(workflow.iteration, 73);
+  assert.equal(workflow.projectId, "");
   assert.deepEqual(workflow.supervisor, Commands.freshSupervisorState());
 
   const normalized = Commands.normalizeSupervisorState({
@@ -476,4 +477,20 @@ test("workflow observability derives phase and truthful cycle labels", () => {
   assert.equal(Commands.workflowPhase(goal), "verification");
   const loop = Commands.normalizeWorkflow({ kind: "loop", objective: "iterate", status: "running", iteration: 3, maxIterations: 8 });
   assert.equal(Commands.workflowIterationLabel(loop), "iteration 3/8");
+});
+
+
+test("rollover-required goal state is durable, project-linked, and not reported as ordinary work", () => {
+  const workflow = Commands.normalizeWorkflow({
+    version: 3,
+    projectId: "project-stable",
+    kind: "goal",
+    objective: "Continue across chats",
+    status: "rollover_required",
+    supervisor: { verificationPending: true }
+  });
+  assert.equal(workflow.version, Commands.WORKFLOW_SCHEMA_VERSION);
+  assert.equal(workflow.projectId, "project-stable");
+  assert.equal(workflow.status, "rollover_required");
+  assert.equal(Commands.workflowPhase(workflow), "rollover");
 });

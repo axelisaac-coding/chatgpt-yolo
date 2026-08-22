@@ -35,7 +35,7 @@ function loadBackground() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "shared.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js", "background.js"]) {
+  for (const file of ["config.js", "shared.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js", "projects.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   const invoke = (message) => new Promise((resolve) => {

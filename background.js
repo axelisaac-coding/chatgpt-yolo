@@ -1,6 +1,6 @@
 "use strict";
 
-importScripts("config.js", "shared.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js");
+importScripts("config.js", "shared.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js", "projects.js");
 
 const Config = globalThis.YOLOConfig;
 const Shared = globalThis.YOLOShared;
@@ -8,13 +8,14 @@ const Coordinator = globalThis.YOLOCoordinator;
 const PortableStore = globalThis.YOLOPortableStore;
 const Queue = globalThis.YOLOQueue;
 const Commands = globalThis.YOLOCommands;
+const Projects = globalThis.YOLOProjects;
 const queueLock = Shared.createLock();
 const workflowLock = Shared.createLock();
 const actionLock = Shared.createLock();
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
 const MAX_RETAINED_COMPLETED_WORKFLOWS = 100;
-const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "stalled", "rate_limited", "human_required", "blocked"]);
+const ACTIVE_WORKFLOW_STATUSES = new Set(["running", "paused", "stalled", "rate_limited", "human_required", "rollover_required", "blocked"]);
 const WORKFLOW_LEASE_MS = 2 * 60 * 1000;
 const WORKFLOW_RENEW_WINDOW_MS = 30 * 1000;
 
@@ -35,6 +36,24 @@ async function readQueueState(pageId) {
     const state = Queue.normalizeState(map[pageId]);
     return { ok: true, state, summary: Queue.summary(state) };
   });
+}
+
+async function readProjectMap() {
+  const stored = await storageGet([Config.STORAGE_KEYS.projects]);
+  return Projects.normalizeProjectMap(stored[Config.STORAGE_KEYS.projects]);
+}
+
+async function automationBlockForPage(pageId) {
+  const map = await readProjectMap();
+  const tombstone = Projects.tombstoneForConversation(map, pageId);
+  if (!tombstone) return null;
+  return {
+    ok: false,
+    reason: "This ChatGPT conversation is exhausted and permanently blocked from YOLO automated continuation",
+    code: "project.conversation_exhausted",
+    projectId: tombstone.projectId,
+    successorPageId: tombstone.conversation.successorPageId || ""
+  };
 }
 
 function ensureQueueCapacity(map, pageId, current) {
@@ -97,6 +116,10 @@ async function handleActionMessage(message, sender) {
   if (!validPageId(pageId)) return { ok: false, reason: "A saved ChatGPT conversation is required", code: "action.page_invalid" };
   if (!senderMatchesPageId(sender, pageId)) {
     return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "action.page_mismatch" };
+  }
+  if (["YOLO_ACTION_CLAIM", "YOLO_ACTION_BEGIN"].includes(message.type)) {
+    const blocked = await automationBlockForPage(pageId);
+    if (blocked) return blocked;
   }
   const actionKey = String(message.actionKey || "").trim().slice(0, 240);
   if (message.type !== "YOLO_ACTION_RESET" && !actionKey) {
@@ -241,6 +264,9 @@ async function activeWorkflowLimitError(key, current, workflow) {
 
 async function enqueueWorkflowPrompt(pageId, key, current, message) {
   return withLock(queueLock, async () => {
+    const projectMap = await readProjectMap();
+    const tombstone = Projects.tombstoneForConversation(projectMap, pageId);
+    if (tombstone) return { ok: false, reason: "Exhausted conversations cannot queue automated workflow prompts", code: "project.conversation_exhausted", workflow: current };
     const map = await readQueueMap();
     const queueCurrent = Queue.normalizeState(map[pageId]);
     const queueResult = Queue.addItem(queueCurrent, message.item, { front: true });
@@ -250,7 +276,7 @@ async function enqueueWorkflowPrompt(pageId, key, current, message) {
 
     const timestamp = Date.now();
     const ownerId = String(message.ownerId || "").trim().slice(0, 220);
-    const workflow = Commands.normalizeWorkflow({
+    const baseWorkflow = Commands.normalizeWorkflow({
       ...message.workflow,
       revision: current.revision + 1,
       pendingItemId: queueResult.item.id,
@@ -262,6 +288,8 @@ async function enqueueWorkflowPrompt(pageId, key, current, message) {
       runnerExpiresAt: ownerId ? timestamp + WORKFLOW_LEASE_MS : 0,
       updatedAt: timestamp
     });
+    const linked = Projects.ensureProjectForWorkflow(projectMap, pageId, baseWorkflow, timestamp);
+    const workflow = linked.workflow;
     const limitError = await activeWorkflowLimitError(key, current, workflow);
     if (limitError) return limitError;
 
@@ -269,7 +297,8 @@ async function enqueueWorkflowPrompt(pageId, key, current, message) {
     map[pageId] = queueResult.state;
     await storageSet({
       [Config.STORAGE_KEYS.queues]: map,
-      [key]: workflow
+      [key]: workflow,
+      ...(linked.project ? { [Config.STORAGE_KEYS.projects]: linked.map } : {})
     });
     return {
       ok: true,
@@ -336,19 +365,38 @@ async function handleWorkflowMessage(message, sender) {
     const key = Config.workflowKey(pageId);
     const stored = await storageGet([key]);
     const current = Commands.normalizeWorkflow(stored[key]);
+    const projectMap = await readProjectMap();
+    const tombstone = Projects.tombstoneForConversation(projectMap, pageId);
 
-    if (message.type === "YOLO_WORKFLOW_GET") return { ok: true, workflow: current };
+    if (message.type === "YOLO_WORKFLOW_GET") {
+      if (current.kind === "goal" && current.objective && !current.projectId) {
+        const linked = Projects.ensureProjectForWorkflow(projectMap, pageId, current);
+        const workflow = Commands.normalizeWorkflow({ ...linked.workflow, revision: current.revision + 1 });
+        await storageSet({ [key]: workflow, [Config.STORAGE_KEYS.projects]: linked.map });
+        return { ok: true, workflow, project: linked.project };
+      }
+      return { ok: true, workflow: current };
+    }
 
     if (message.type === "YOLO_WORKFLOW_SET") {
       const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
       if (expectedRevision !== current.revision) {
         return { ok: false, reason: "Workflow changed in another tab", code: "workflow.conflict", workflow: current };
       }
-      const workflow = Commands.normalizeWorkflow({ ...message.workflow, revision: current.revision + 1 });
+      const requested = Commands.normalizeWorkflow({ ...message.workflow, revision: current.revision + 1 });
+      if (tombstone && requested.status === "running") {
+        return { ok: false, reason: "Exhausted conversations cannot restart automated workflows", code: "project.conversation_exhausted", workflow: current };
+      }
+      const linked = Projects.ensureProjectForWorkflow(projectMap, pageId, requested);
+      const workflow = linked.workflow;
       const limitError = await activeWorkflowLimitError(key, current, workflow);
       if (limitError) return limitError;
-      await storageSet({ [key]: workflow });
-      return { ok: true, workflow };
+      await storageSet({ [key]: workflow, ...(linked.project ? { [Config.STORAGE_KEYS.projects]: linked.map } : {}) });
+      return { ok: true, workflow, ...(linked.project ? { project: linked.project } : {}) };
+    }
+
+    if (tombstone && ["YOLO_WORKFLOW_QUEUE_ADD", "YOLO_WORKFLOW_CLAIM"].includes(message.type)) {
+      return { ok: false, reason: "Exhausted conversations cannot continue automated workflows", code: "project.conversation_exhausted", workflow: current };
     }
 
     if (message.type === "YOLO_WORKFLOW_QUEUE_ADD") {
@@ -408,11 +456,27 @@ async function handleWorkflowMessage(message, sender) {
   });
 }
 
+async function handleProjectMessage(message, sender) {
+  const pageId = message.pageId;
+  if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "project.page_invalid" };
+  if (!senderMatchesPageId(sender, pageId)) {
+    return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "project.page_mismatch" };
+  }
+  if (message.type !== "YOLO_PROJECT_GET") return { ok: false, reason: "Unknown project operation", code: "project.unknown" };
+  const map = await readProjectMap();
+  const found = Projects.findProjectByConversation(map, pageId);
+  return { ok: true, project: found.project };
+}
+
 async function handleQueueMessage(message, sender) {
   const pageId = message.pageId;
   if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "queue.page_invalid" };
   if (!senderMatchesPageId(sender, pageId)) {
     return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "queue.page_mismatch" };
+  }
+  if (["YOLO_QUEUE_ADD", "YOLO_QUEUE_CLAIM", "YOLO_QUEUE_MARK_SUBMITTING", "YOLO_QUEUE_RETRY"].includes(message.type)) {
+    const blocked = await automationBlockForPage(pageId);
+    if (blocked) return blocked;
   }
 
   if (message.type === "YOLO_QUEUE_GET") {
@@ -491,9 +555,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     ? handleActionMessage(message, sender)
     : message.type.includes("TEMPLATE")
       ? handleTemplateMessage(message)
-      : message.type.includes("WORKFLOW")
-        ? handleWorkflowMessage(message, sender)
-        : handleQueueMessage(message, sender);
+      : message.type.includes("PROJECT")
+        ? handleProjectMessage(message, sender)
+        : message.type.includes("WORKFLOW")
+          ? handleWorkflowMessage(message, sender)
+          : handleQueueMessage(message, sender);
   Promise.resolve(task)
     .then((response) => sendResponse(response))
     .catch((error) => sendResponse({ ok: false, reason: Shared.errorMessage(error) }));

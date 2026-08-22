@@ -14,6 +14,7 @@
     lastAction: "yoloLastAction",
     runtime: "yoloRuntimeV1",
     queues: "yoloQueuesV1",
+    projects: "yoloProjectsV1",
     templates: "yoloTemplatesV1",
     actionGuards: "yoloActionGuardsV1",
     portableRevision: "yoloPortableRevisionV1"

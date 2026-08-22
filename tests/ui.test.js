@@ -313,3 +313,11 @@ test("workflow observability exposes phase, cycle, progress, and circuit breaker
   assert.match(ui, /Commands\.workflowIterationLabel\(currentWorkflow\)/);
   assert.equal(ui.includes('iteration ${currentWorkflow.iteration}/${currentWorkflow.maxIterations}'), false);
 });
+
+
+test("Supervisor status surfaces project identity while rollover-required chats stay non-resumable", () => {
+  const runtime = read("command-runtime.js");
+  const ui = read("command-ui.js");
+  assert.match(runtime, /Project: workflow\.status === "idle" \? "—" : \(workflow\.projectId \|\| "Unlinked"\)/);
+  assert.doesNotMatch(ui, /\["paused", "stalled", "rate_limited", "human_required", "rollover_required", "blocked"\]\.includes\(currentWorkflow\.status\)/);
+});

@@ -50,7 +50,7 @@ function loadBackground(existingStorage = {}) {
   };
   context.globalThis = context;
   vm.createContext(context);
-  for (const file of ["config.js", "shared.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js", "background.js"]) {
+  for (const file of ["config.js", "shared.js", "coordinator.js", "portable-store.js", "queue.js", "commands.js", "projects.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
   }
   const invoke = (message, sender = {}) => new Promise((resolve) => {
@@ -405,4 +405,98 @@ test("template additions require a stable client mutation id", async () => {
   assert.equal(response.code, "template.id_required");
   assert.equal(storage.yoloPortableRevisionV1, undefined);
   assert.equal(storage.yoloTemplatesV1, undefined);
+});
+
+
+test("persistent goals are linked to a stable project and context exhaustion creates a tombstone", async () => {
+  const { invoke, storage } = loadBackground();
+  const pageId = "https://chatgpt.com/c/rollover-foundation";
+  const started = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Survive thread exhaustion", status: "running" }
+  });
+  assert.equal(started.ok, true);
+  assert.ok(started.workflow.projectId);
+  const projectId = started.workflow.projectId;
+  assert.equal(storage.yoloProjectsV1[projectId].currentConversationId, pageId);
+  assert.equal(storage.yoloProjectsV1[projectId].conversationChain[0].generation, 1);
+
+  const exhausted = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: started.workflow.revision,
+    workflow: { ...started.workflow, status: "rollover_required", reason: "maximum length for this conversation" }
+  });
+  assert.equal(exhausted.ok, true);
+  assert.equal(exhausted.workflow.status, "rollover_required");
+  const project = (await invoke({ type: "YOLO_PROJECT_GET", pageId })).project;
+  assert.equal(project.id, projectId);
+  assert.equal(project.status, "rollover_required");
+  assert.equal(project.conversationChain[0].status, "exhausted");
+  assert.equal(project.conversationChain[0].doNotContinue, true);
+});
+
+test("exhausted conversation stays inert across refresh even with stale queued or claimed work", async () => {
+  const storage = {};
+  const pageId = "https://chatgpt.com/c/exhausted-refresh-loop";
+  const first = loadBackground(storage);
+  const queued = await first.invoke({
+    type: "YOLO_WORKFLOW_QUEUE_ADD",
+    pageId,
+    expectedRevision: 0,
+    ownerId: "old-tab",
+    workflow: { kind: "goal", objective: "Never resend in exhausted chat", status: "running", id: "goal-refresh" },
+    item: { text: "last prompt", source: "workflow:goal", sourceId: "goal-refresh" }
+  });
+  assert.equal(queued.ok, true);
+  const claimedBeforeLimit = await first.invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "old-content" });
+  assert.equal(claimedBeforeLimit.ok, true);
+  const exhausted = await first.invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: queued.workflow.revision,
+    workflow: { ...queued.workflow, status: "rollover_required", reason: "conversation reached maximum length" }
+  });
+  assert.equal(exhausted.ok, true);
+
+  const submittingAfterLimit = await first.invoke({
+    type: "YOLO_QUEUE_MARK_SUBMITTING",
+    pageId,
+    itemId: claimedBeforeLimit.item.id,
+    claimToken: claimedBeforeLimit.item.claimToken
+  });
+  assert.equal(submittingAfterLimit.ok, false);
+  assert.equal(submittingAfterLimit.code, "project.conversation_exhausted");
+
+  const refreshed = loadBackground(storage);
+  const workflowClaim = await refreshed.invoke({ type: "YOLO_WORKFLOW_CLAIM", pageId, ownerId: "refreshed-tab" });
+  assert.equal(workflowClaim.ok, false);
+  assert.equal(workflowClaim.code, "project.conversation_exhausted");
+  const queueClaim = await refreshed.invoke({ type: "YOLO_QUEUE_CLAIM", pageId, ownerId: "refreshed-content" });
+  assert.equal(queueClaim.ok, false);
+  assert.equal(queueClaim.code, "project.conversation_exhausted");
+  const actionClaim = await refreshed.invoke({
+    type: "YOLO_ACTION_CLAIM",
+    pageId,
+    actionKey: "refresh",
+    ownerId: "refreshed-content",
+    leaseMs: 1000,
+    cooldownMs: 0
+  });
+  assert.equal(actionClaim.ok, false);
+  assert.equal(actionClaim.code, "project.conversation_exhausted");
+  const queueAdd = await refreshed.invoke({ type: "YOLO_QUEUE_ADD", pageId, item: { text: "restored last prompt" } });
+  assert.equal(queueAdd.ok, false);
+  assert.equal(queueAdd.code, "project.conversation_exhausted");
+  const restart = await refreshed.invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: exhausted.workflow.revision,
+    workflow: { ...exhausted.workflow, status: "running" }
+  });
+  assert.equal(restart.ok, false);
+  assert.equal(restart.code, "project.conversation_exhausted");
+  assert.equal(storage.yoloQueuesV1[pageId].items.length, 1, "stale queue item remains inspectable but inert");
 });

@@ -288,6 +288,7 @@
     const workflow = Commands.normalizeWorkflow(state.workflow);
     state.ui?.showStatus({
       Conversation: state.pageId || "Unavailable",
+      Project: workflow.status === "idle" ? "—" : (workflow.projectId || "Unlinked"),
       Workflow: workflow.status === "idle" ? "None" : `/${workflow.kind} · ${workflow.status}`,
       Phase: workflow.status === "idle" ? "—" : Commands.workflowPhase(workflow),
       Objective: workflow.status === "idle" ? "—" : workflow.objective,
