@@ -321,3 +321,14 @@ The old unpacked YOLO 1.1.0 Chrome extension was disabled during Phase F prepara
 
 ## Exact next step after checkpoint 022
 Run authenticated Phase F against the unchanged candidate: saved durable source conversation -> observable proactive trigger -> verified semantic handoff -> source retirement -> real New Chat control -> exact bootstrap user receipt -> observed different durable successor `/c/...` -> token-bound bootstrap verification -> project lineage/generation advance -> normal Goal resume -> reload/service-worker recovery with no duplicate send. Record only observed evidence in `docs/CONTINUATION_SUPERVISOR_LIVE_QUALIFICATION.json`. `npm run validate:live` must pass before a formal `v1.2.0` tag/release is permitted. Overall estimate: approximately 99%.
+
+## Checkpoint 023 - Phase F live blocker remediation
+The first authenticated checkpoint-022 install surfaced a real browser error on a saved ChatGPT project conversation: `commands.js:53 Uncaught TypeError: Cannot read properties of undefined (reading 'makeId')`. Static manifest order was correct; the defect was the automatic `tab-supervisor.js` fallback injection stack, which omitted `shared.js` while injecting `commands.js`.
+
+Runtime commit `625940f3ce07b435bc57c3495adb48c4492e1175` adds `shared.js` before `commands.js` in the canonical supervisor injection list. The existing popup/options fallback lists were already correct. Tests now cover all three injection owners plus a fresh unhealthy saved tab that captures the real `chrome.scripting.executeScript` file payload.
+
+Validation after the fix: focused injection/runtime gate 52/52; full suite 382/382; 39-file extension boundary/package verification; no-bare-installs; real asset validation; and `git diff --check` all pass. Canonical runtime digest is `BC4CB45B885A91E13A6843F36E00492B11E8C61A094204DCEDAB176A7495DF35`.
+
+Checkpoint 023 source ZIP: `Continuation-Supervisor-checkpoint-023-live-shared-order-625940f.zip`, SHA-256 `98DB24B643F2016451095EE0CF4912FE6DE4042D2CCD0B3FB7DE92584A60E854`. Browser ZIP: `Continuation-Supervisor-browser-candidate-625940f.zip`, SHA-256 `A4CA4BBDD4061010DEC19682F9AF102477CA193914E50904B02E6FFE6D8239CE`; browser ZIP parity 39/39, no missing/extra/hash mismatches.
+
+The already-installed Chrome folder `C:\Users\user\Desktop\Yolo Handover\Checkpoint022-Live-v1.2.0-57fba57` was refreshed in place to exact checkpoint-023 runtime parity. Chrome must Reload that unpacked extension and the saved ChatGPT tab must be refreshed before Phase F retest. Do not count the failed attempt as live PASS; it is defect evidence only.

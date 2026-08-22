@@ -1,26 +1,22 @@
 {
   "branch": "continuation-supervisor-development",
-  "checkpoint": 22,
-  "version": "1.2.0",
-  "implementationCommit": "57fba57c3cf7c3a6fc28f5bc300da2f59fe745de",
-  "phaseCompleted": "D+E plus pre-live Phase G release hardening",
-  "phaseNext": "F authenticated live qualification",
+  "checkpoint": 23,
+  "implementationCommit": "625940f3ce07b435bc57c3495adb48c4492e1175",
+  "phaseCompleted": "G hardening + Phase F live blocker fix",
+  "phaseNext": "F live retest",
   "progressPercent": 99,
   "validation": {
-    "fullSuite": "381/381",
-    "environmentExclusions": 0,
+    "tests": "382/382",
+    "focusedLiveDefect": "52/52",
     "runtimeFiles": 39,
-    "archiveParity": "39/39",
-    "assetValidation": "passed"
+    "archiveParity": "39/39"
   },
-  "runtimeDigestSha256": "831114494EC46B3655B2DA1A4C7C3BC60BA829F03B0FD118FA962F2C14286A60",
-  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-022-v1.2.0-live-candidate-57fba57.zip",
-  "sourceSha256": "A9325B49A40E632BE84BCFFC1AC7E112995D10D0B8B726F16A7F795DC9671E34",
-  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-v1.2.0-57fba57.zip",
-  "browserCandidateSha256": "22BBB573D56CD1ED4AC4158E5730CC510D728E210C9E08CEA339DACFEE167D48",
-  "liveLoadFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
-  "next": "Run authenticated live saved-source to real successor rollover on unchanged checkpoint-022 runtime; record matching live receipt; validate:live; only then publish v1.2.0",
-  "testOnlyTag": "continuation-supervisor-v1.2.0-live-candidate-57fba57",
-  "testOnlyDraftRelease": "https://github.com/axelisaac-coding/chatgpt-yolo/releases/tag/untagged-25ab4a94fafa2e797bd8",
-  "liveStatus": "awaiting user load of exact checkpoint-022 candidate; old 1.1.0 remains disabled"
+  "runtimeDigestSha256": "BC4CB45B885A91E13A6843F36E00492B11E8C61A094204DCEDAB176A7495DF35",
+  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-023-live-shared-order-625940f.zip",
+  "sourceSha256": "98DB24B643F2016451095EE0CF4912FE6DE4042D2CCD0B3FB7DE92584A60E854",
+  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-625940f.zip",
+  "browserCandidateSha256": "A4CA4BBDD4061010DEC19682F9AF102477CA193914E50904B02E6FFE6D8239CE",
+  "liveFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
+  "liveStatus": "folder refreshed to checkpoint 023; browser extension Reload required before authenticated retest",
+  "next": "Reload extension, refresh saved chat, verify Shared.makeId crash is gone, then execute digest-bound Phase F rollover qualification"
 }

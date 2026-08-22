@@ -20,6 +20,7 @@ All notable changes are documented here.
 - Added real New Chat UI migration with pre-click/pre-submit persistence, exact bootstrap receipt verification, token-bound successor verification, and fail-closed ambiguous delivery.
 - Added deterministic A->B->C->D endurance coverage across service-worker restarts and duplicate-tab ownership races.
 - Added a formal-release-only authenticated live qualification gate bound to the exact packaged runtime digest.
+- Fixed tab-supervisor fallback reinjection so `shared.js` loads before `commands.js` on fresh/install recovery paths.
 
 ## 1.1.0 - overnight reliability
 

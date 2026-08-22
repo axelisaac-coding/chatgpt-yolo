@@ -68,3 +68,11 @@ Cross-conversation rollover is implemented deterministically through proactive r
 | R9 | Live current-ChatGPT cross-conversation rollover | AUTH LIVE REQUIRED | Checkpoint 022 is the exact v1.2.0 candidate for Phase F; no live PASS is claimed until the digest-bound receipt validates. |
 
 The source-chat tombstone is deliberately fail-closed and survives service-worker restart. It is stored outside the conversation DOM, so a reload that restores prior ChatGPT content cannot make the extension forget that the route is exhausted. No part of this mechanism bypasses ChatGPT/OpenAI account, subscription, model, usage, rate, access, or safety limits.
+
+## Authenticated live attempt 1 - blocker found and fixed
+
+Checkpoint 022 was loaded in the user's authenticated Chrome profile on a real saved ChatGPT project conversation. Before rollover qualification could begin, Chrome reported `commands.js:53 Uncaught TypeError: Cannot read properties of undefined (reading 'makeId')`.
+
+Root cause: `tab-supervisor.js` automatic fallback injection omitted `shared.js` before `commands.js`. The manifest, popup, and options injection orders were already correct. Runtime commit `625940f3ce07b435bc57c3495adb48c4492e1175` fixes the canonical supervisor order and adds a fresh-unhealthy-tab regression that captures the actual injection payload.
+
+Post-fix evidence is automated only: 382/382 full tests, 52/52 focused live-defect tests, 39/39 package parity, runtime digest `BC4CB45B885A91E13A6843F36E00492B11E8C61A094204DCEDAB176A7495DF35`. **AUTH LIVE REQUIRED** remains unchanged until the corrected runtime is reloaded and the full saved-source -> successor flow is actually observed.
