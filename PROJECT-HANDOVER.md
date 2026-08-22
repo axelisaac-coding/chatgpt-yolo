@@ -288,3 +288,19 @@ Checkpoint 020 source ZIP: `Continuation-Supervisor-checkpoint-020-successor-rol
 
 ## Exact next step after checkpoint 020
 Phase D: proactive rollover before hard exhaustion, based only on observable evidence. Generate and independently verify a fresh semantic handoff while the source remains usable, then enter the already-proven Phase C successor transaction. Add bounded trigger thresholds/cooldowns and prove provider/rate/human-required states cannot trigger proactive rollover. Overall estimate after Phase C: approximately 91%.
+
+## Implementation checkpoint 021 — proactive rollover + multi-generation endurance / Phases D+E
+Implementation commit `d2b9c1b0468482fced462a954066758205169061` completes deterministic proactive rollover and A->B->C->D endurance. Proactive trigger evidence is observable only: visible message count, visible text volume, and durable Goal continuation count. A high durable-continuation threshold protects against DOM virtualization without claiming token/context percentages.
+
+Project schema v4 persists proactive mode, evidence, bounded attempts/cooldown, handoff action/prompt ownership state, and restart-safe transition data. `rollover_pending` is active for workflow capacity, hidden polling, refresh suppression, and optional Memory Saver protection.
+Fresh handoff generation and independent verification use the durable queue with deduplication and exact user-message ownership. A hard context limit preempts source-chat handoff work and converts the same transaction to hard mode.
+
+Before New Chat navigation, proactive failures remain recoverable. Ownership loss uses one atomic background mutation to return the project active and pause the Goal while preserving attempt/cooldown evidence. Queue delivery failure falls back to verified handoff/checkpoint/machine state. Once New Chat intent is persisted, the source is permanently `doNotContinue` even if it was proactively retired rather than hard-exhausted.
+
+Validation: 355/355 non-environmental tests; focused Phase D/E gate 145/145; deterministic endurance passes A proactive -> B hard-limit -> C proactive -> D with repeated service-worker restarts. `npm run check`, 39-file extension verification, package `--check`, no-bare-installs, and `git diff --check` pass.
+Checkpoint 021 source ZIP: `Continuation-Supervisor-checkpoint-021-proactive-endurance-d2b9c1b.zip`, SHA-256 `0A5728F5C018BC8734F6B89B4432D2EB41624275F77FB305D0AFAEABB2304FC3`. Browser candidate: `Continuation-Supervisor-browser-candidate-d2b9c1b.zip`, SHA-256 `EA724CD81AB747CB76B1BAFAE03CBD3D4F60BAD203558A6CA11189F08A32CAC9`; archive parity 39/39, no missing/extra/hash mismatches.
+
+## Exact next step after checkpoint 021
+Phase F: authenticated live current-ChatGPT qualification. Exercise a real saved-conversation rollover through the actual New Chat control, observe the real successor `/c/<id>`, verify bootstrap receipt/marker and durable Goal resumption, then perform a second-generation rollover if practical. Record exact evidence or the exact blocker. Do not promote to formal release until this passes. Phase G follows with final release hardening/polish.
+
+Revised overall estimate after Phases D+E: approximately 97% toward the actual cross-conversation orchestration goal.

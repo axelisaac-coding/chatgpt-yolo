@@ -1,14 +1,14 @@
 {
   "branch": "continuation-supervisor-development",
-  "checkpoint": 20,
-  "implementationCommit": "0af992d58eb3a515aac08e09f791471f62f2a1bf",
-  "phaseCompleted": "C",
-  "phaseNext": "D",
-  "progressPercent": 91,
-  "validation": {"nonEnvironmental":"332/332","runtimeFiles":39,"archiveParity":"39/39"},
-  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-020-successor-rollover-0af992d.zip",
-  "sourceSha256": "C4829DA1ED4F11FE1D7A1BCB9013A5DF6264EFD5A27C03DB6376630F1E7F3561",
-  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-0af992d.zip",
-  "browserCandidateSha256": "CA8B34C7028FDF71A6FDF5BCB0136D32BB75CA8686953A143B5DEDE2B739FEFB",
-  "next": "Phase D: proactive rollover from observable evidence, verified semantic handoff, then reuse Phase C successor transaction"
+  "checkpoint": 21,
+  "implementationCommit": "d2b9c1b0468482fced462a954066758205169061",
+  "phaseCompleted": "D+E",
+  "phaseNext": "F",
+  "progressPercent": 97,
+  "validation": {"nonEnvironmental":"355/355","focusedPhaseDE":"145/145","runtimeFiles":39,"archiveParity":"39/39"},
+  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-021-proactive-endurance-d2b9c1b.zip",
+  "sourceSha256": "0A5728F5C018BC8734F6B89B4432D2EB41624275F77FB305D0AFAEABB2304FC3",
+  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-d2b9c1b.zip",
+  "browserCandidateSha256": "EA724CD81AB747CB76B1BAFAE03CBD3D4F60BAD203558A6CA11189F08A32CAC9",
+  "next": "Phase F: authenticated live current-ChatGPT rollover qualification, then Phase G release hardening"
 }
