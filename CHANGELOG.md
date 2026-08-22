@@ -21,6 +21,7 @@ All notable changes are documented here.
 - Added deterministic A->B->C->D endurance coverage across service-worker restarts and duplicate-tab ownership races.
 - Added a formal-release-only authenticated live qualification gate bound to the exact packaged runtime digest.
 - Fixed tab-supervisor fallback reinjection so `shared.js` loads before `commands.js` on fresh/install recovery paths.
+- Fixed full slash-command submission so recognized YOLO commands are intercepted at the composer form boundary instead of escaping as ordinary ChatGPT messages.
 
 ## 1.1.0 - overnight reliability
 

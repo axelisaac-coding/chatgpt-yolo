@@ -76,3 +76,8 @@ Checkpoint 022 was loaded in the user's authenticated Chrome profile on a real s
 Root cause: `tab-supervisor.js` automatic fallback injection omitted `shared.js` before `commands.js`. The manifest, popup, and options injection orders were already correct. Runtime commit `625940f3ce07b435bc57c3495adb48c4492e1175` fixes the canonical supervisor order and adds a fresh-unhealthy-tab regression that captures the actual injection payload.
 
 Post-fix evidence is automated only: 382/382 full tests, 52/52 focused live-defect tests, 39/39 package parity, runtime digest `BC4CB45B885A91E13A6843F36E00492B11E8C61A094204DCEDAB176A7495DF35`. **AUTH LIVE REQUIRED** remains unchanged until the corrected runtime is reloaded and the full saved-source -> successor flow is actually observed.
+
+## Phase F live finding - checkpoint 024
+Authenticated queue delivery on checkpoint 023 was observed once end-to-end with exact user/assistant token `YOLO-LIVE-QUEUE-OK`. The subsequent full `/goal ...` qualification command escaped as an ordinary ChatGPT message instead of starting the workflow, so Phase F remained failed/blocked rather than promoted.
+Checkpoint 024 fixes the public command-submission boundary: recognized YOLO slash commands are intercepted on composer form `submit` in capture phase in addition to keydown. Full deterministic suite passes 383/383; focused command/runtime gate passes 91/91. Exact runtime digest: `83AF4B14DEBEDF560D38137A46E0073826E8888B85D0565D7FB863C9450230E1`.
+This is automated remediation evidence only. R9 remains **AUTH LIVE REQUIRED** until the corrected runtime is reloaded and the complete rollover path is actually observed.

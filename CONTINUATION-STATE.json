@@ -1,22 +1,22 @@
 {
   "branch": "continuation-supervisor-development",
-  "checkpoint": 23,
-  "implementationCommit": "625940f3ce07b435bc57c3495adb48c4492e1175",
-  "phaseCompleted": "G hardening + Phase F live blocker fix",
+  "checkpoint": 24,
+  "implementationCommit": "9660785ff423471696866fada0046aef6b0a2687",
+  "phaseCompleted": "G hardening + Phase F live blocker fix 2",
   "phaseNext": "F live retest",
   "progressPercent": 99,
   "validation": {
-    "tests": "382/382",
-    "focusedLiveDefect": "52/52",
+    "tests": "383/383",
+    "focusedLiveDefect": "91/91",
     "runtimeFiles": 39,
     "archiveParity": "39/39"
   },
-  "runtimeDigestSha256": "BC4CB45B885A91E13A6843F36E00492B11E8C61A094204DCEDAB176A7495DF35",
-  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-023-live-shared-order-625940f.zip",
-  "sourceSha256": "98DB24B643F2016451095EE0CF4912FE6DE4042D2CCD0B3FB7DE92584A60E854",
-  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-625940f.zip",
-  "browserCandidateSha256": "A4CA4BBDD4061010DEC19682F9AF102477CA193914E50904B02E6FFE6D8239CE",
+  "runtimeDigestSha256": "83AF4B14DEBEDF560D38137A46E0073826E8888B85D0565D7FB863C9450230E1",
+  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-024-v1.2.0-command-submit-fix-9660785.zip",
+  "sourceSha256": "754826E197D4644FC3D4F91C081BF0074742E1A078EDD9E90EBA6C9C14D6B0E7",
+  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-v1.2.0-9660785.zip",
+  "browserCandidateSha256": "380E7CA9649A4DDEE32958DDF160FCA2194305E2F5563D09386B6756BD56B863",
   "liveFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
-  "liveStatus": "folder refreshed to checkpoint 023; browser extension Reload required before authenticated retest",
-  "next": "Reload extension, refresh saved chat, verify Shared.makeId crash is gone, then execute digest-bound Phase F rollover qualification"
+  "liveStatus": "folder refreshed to checkpoint 024; browser extension Reload required before slash-command retest",
+  "next": "Reload extension, refresh saved chat, retry the full /goal command, then continue digest-bound Phase F rollover qualification"
 }
