@@ -304,3 +304,20 @@ Checkpoint 021 source ZIP: `Continuation-Supervisor-checkpoint-021-proactive-end
 Phase F: authenticated live current-ChatGPT qualification. Exercise a real saved-conversation rollover through the actual New Chat control, observe the real successor `/c/<id>`, verify bootstrap receipt/marker and durable Goal resumption, then perform a second-generation rollover if practical. Record exact evidence or the exact blocker. Do not promote to formal release until this passes. Phase G follows with final release hardening/polish.
 
 Revised overall estimate after Phases D+E: approximately 97% toward the actual cross-conversation orchestration goal.
+
+## Implementation checkpoint 022 - v1.2.0 authenticated-live candidate / pre-live Phase G
+
+Candidate commit `57fba57c3cf7c3a6fc28f5bc300da2f59fe745de` is the exact runtime to use for Phase F. Version is `1.2.0`. The candidate adds the formal-release-only authenticated-live evidence gate, canonical packaged-runtime digest verification, stale/future receipt rejection, a 13-observation live receipt contract, fork release metadata, updated release/testing documentation, and cross-platform release tests.
+
+The final deterministic suite passes 381/381 with no environment exclusions. The former Windows CRLF exact-text false failure is now newline-agnostic. MP4 metadata tests inject ffprobe metadata while production still defaults to the real ffprobe executable, so the same validation logic is fully exercised on Windows. Syntax, 39-file extension boundary, package `--check`, no-bare-installs, real asset validation, and `git diff --check` pass.
+
+Canonical packaged runtime digest: `831114494EC46B3655B2DA1A4C7C3BC60BA829F03B0FD118FA962F2C14286A60`.
+Source ZIP: `Continuation-Supervisor-checkpoint-022-v1.2.0-live-candidate-57fba57.zip`, SHA-256 `A9325B49A40E632BE84BCFFC1AC7E112995D10D0B8B726F16A7F795DC9671E34`.
+Browser ZIP: `Continuation-Supervisor-browser-candidate-v1.2.0-57fba57.zip`, SHA-256 `22BBB573D56CD1ED4AC4158E5730CC510D728E210C9E08CEA339DACFEE167D48`.
+Browser ZIP parity: 39/39 files, 0 missing, 0 extra, 0 hash mismatches.
+Exact live folder: `C:\Users\user\Desktop\Yolo Handover\Checkpoint022-Live-v1.2.0-57fba57`, verified 39/39 byte-identical to `dist/yolo`.
+
+The old unpacked YOLO 1.1.0 Chrome extension was disabled during Phase F preparation and should stay disabled. Load only the checkpoint-022 folder above. Do not modify thresholds/selectors or manufacture provider limits to force qualification.
+
+## Exact next step after checkpoint 022
+Run authenticated Phase F against the unchanged candidate: saved durable source conversation -> observable proactive trigger -> verified semantic handoff -> source retirement -> real New Chat control -> exact bootstrap user receipt -> observed different durable successor `/c/...` -> token-bound bootstrap verification -> project lineage/generation advance -> normal Goal resume -> reload/service-worker recovery with no duplicate send. Record only observed evidence in `docs/CONTINUATION_SUPERVISOR_LIVE_QUALIFICATION.json`. `npm run validate:live` must pass before a formal `v1.2.0` tag/release is permitted. Overall estimate: approximately 99%.

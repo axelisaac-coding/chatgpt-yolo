@@ -1,4 +1,4 @@
-# Continuation Supervisor — Resume Here
+# Continuation Supervisor - Resume Here
 
 Branch: `continuation-supervisor-development`
 Repo: `C:\Users\user\ChatGPT-Continuation-Supervisor\chatgpt-yolo`
@@ -11,17 +11,19 @@ Checkpoints: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints`
 4. Before stopping: validate, update repo state, commit/push, checkpoint.
 
 ## Current state
-Checkpoint 021 / Phase D+E implementation commit: `d2b9c1b0468482fced462a954066758205169061`.
-Proactive pre-limit rollover and deterministic A->B->C->D endurance are implemented. Project schema v4 persists proactive evidence, bounded attempts/cooldown, handoff action state, hard-limit takeover, safe pre-navigation abort, and source retirement. `rollover_pending` remains active/protected while handoff work is in flight.
-Validation: 355/355 non-environmental tests; focused Phase D/E 145/145; A->B->C->D endurance passes with service-worker restarts; 39 packaged runtime files; syntax/boundary/package/no-bare/diff checks clean.
-Overall estimate: ~97%.
+Checkpoint 022 / v1.2.0 live-test candidate commit: `57fba57c3cf7c3a6fc28f5bc300da2f59fe745de`.
+Deterministic cross-conversation orchestration, proactive rollover, A->B->C->D endurance, v1.2.0 release metadata, and the formal-release-only authenticated-live evidence gate are implemented.
+Validation: full suite 381/381 with no environment exclusions; public extension boundary 39 files; package allowlist, no-bare-installs, real asset validation, syntax, and diff integrity all pass.
+Canonical packaged-runtime digest: `831114494EC46B3655B2DA1A4C7C3BC60BA829F03B0FD118FA962F2C14286A60`.
+Overall estimate: ~99%; authenticated live current-ChatGPT qualification is the remaining substantive release blocker.
 
-## Checkpoint 021 artifacts
-Source: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-checkpoint-021-proactive-endurance-d2b9c1b.zip`
-SHA-256: `0A5728F5C018BC8734F6B89B4432D2EB41624275F77FB305D0AFAEABB2304FC3`
-Browser candidate: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-browser-candidate-d2b9c1b.zip`
-SHA-256: `EA724CD81AB747CB76B1BAFAE03CBD3D4F60BAD203558A6CA11189F08A32CAC9`
+## Checkpoint 022 artifacts
+Source: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-checkpoint-022-v1.2.0-live-candidate-57fba57.zip`
+Source SHA-256: `A9325B49A40E632BE84BCFFC1AC7E112995D10D0B8B726F16A7F795DC9671E34`
+Browser candidate: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-browser-candidate-v1.2.0-57fba57.zip`
+Browser SHA-256: `22BBB573D56CD1ED4AC4158E5730CC510D728E210C9E08CEA339DACFEE167D48`
 Archive verification: 39/39 files, missing 0, extra 0, hash mismatch 0.
+Live load folder: `C:\Users\user\Desktop\Yolo Handover\Checkpoint022-Live-v1.2.0-57fba57` (39/39 byte-parity with packaged runtime).
 
 ## Exact next work
-Phase F: authenticated live qualification on current ChatGPT. Exercise a real saved-conversation rollover through New Chat and observed successor binding, then a second generation rollover if practical. Record exact UI/runtime evidence and any blocker. Do not convert automated evidence into a formal release claim until authenticated live qualification passes. After Phase F, perform Phase G release hardening/polish and final candidate governance.
+Run Phase F authenticated qualification with only the checkpoint-022 v1.2.0 candidate enabled. Observe the real saved-source -> proactive handoff -> New Chat -> durable successor `/c/...` -> exact bootstrap receipt -> token-bound verification -> lineage advance -> successor Goal resume path, then reload/restart recovery without duplicates. Record only actually observed evidence in `docs/CONTINUATION_SUPERVISOR_LIVE_QUALIFICATION.json`; `npm run validate:live` must pass before formal `v1.2.0` release publication.

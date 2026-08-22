@@ -28,7 +28,7 @@ Legend:
 | 13 | Premature completion claim | AUTOMATED PASS | First Goal DONE starts independent evidence verification; incomplete verification returns to work. |
 | 14 | Provider/rate/usage-limit pause | AUTOMATED PASS; AUTH LIVE REQUIRED | Provider-limit surfaces map to `rate_limited`; naturally occurring live provider UI still needs confirmation. No limit bypass is permitted. |
 | 15 | Genuine completion | AUTOMATED PASS; AUTH LIVE REQUIRED | Only verified Goal DONE completes; final live flow still requires authenticated browser evidence. |
-| 16 | Long run representative of ~15 hours | AUTOMATED PASS for state-machine endurance; AUTH LIVE REQUIRED | 1,000-cycle deterministic endurance passes. Real elapsed-time unattended ChatGPT operation remains a release blocker alongside unfinished cross-conversation rollover. |
+| 16 | Long run representative of ~15 hours | AUTOMATED PASS for state-machine endurance; AUTH LIVE REQUIRED | 1,000-cycle deterministic endurance passes. Real elapsed-time unattended ChatGPT operation remains a release blocker alongside authenticated current-site rollover qualification. |
 
 ## Public browser smoke evidence
 
@@ -44,21 +44,16 @@ The isolated profile was not authenticated. The direct guest prompt was not a YO
 
 ## Baseline environment exclusions
 
-The normal broad local regression command excludes only two pre-existing environment-specific cases:
-
-- `portability-integration.test.js`: Windows checkout line-ending assertion (CRLF/LF exact-text mismatch).
-- ffprobe-dependent MP4 cases in `validate-asset-manifest.test.js`: `ffprobe` is not installed/on PATH.
-
-These exclusions predate the Continuation Supervisor changes and are not counted as product regressions. Syntax, package-boundary, release/package, queue, workflow, Supervisor, UI, privacy, permissions, and endurance tests continue to run.
+Checkpoint 022 has no local regression exclusions. The Windows CRLF/LF exact-text assertion is newline-agnostic, and MP4 metadata tests inject ffprobe metadata while production validation still defaults to the real executable. The full local suite passes 381/381.
 
 ## Release gate
 
-A formal release remains blocked until cross-conversation rollover is implemented and qualified, and an authenticated saved-conversation browser pass validates actual composer delivery and response observation on the current ChatGPT UI, including restart/recovery/verification/stop-state flows, followed by a long-duration run representative of the intended unattended workflow.
+A formal release remains blocked on an authenticated saved-conversation browser pass of the exact v1.2.0 packaged runtime and the required live/endurance evidence. Deterministic cross-conversation rollover is implemented; automated evidence is not treated as equivalent to current-site authenticated execution.
 
 Do not convert **AUTH LIVE REQUIRED** rows to PASS from inference, public-page injection, or unit tests alone. If the live environment exposes a defect, reproduce it deterministically where practical, fix it, rerun the full gate, and repeat the live check before promotion.
 ## Conversation rollover development gate
 
-Cross-conversation rollover is now implemented deterministically through Phase C, but formal release remains blocked on proactive rollover, multi-generation endurance, and authenticated live qualification. The runtime keeps permanent source-chat tombstones, opens ChatGPT New Chat through an explicit observed UI control, persists bootstrap intent before any transient-composer side effect, and binds only a real successor `/c/<id>` after exact receipt and bootstrap-marker verification.
+Cross-conversation rollover is implemented deterministically through proactive rollover and A->B->C->D endurance. Formal release remains blocked on authenticated live qualification of the exact packaged v1.2.0 runtime. The runtime keeps permanent source-chat tombstones, opens ChatGPT New Chat through an explicit observed UI control, persists bootstrap intent before any transient-composer side effect, and binds only a real successor `/c/<id>` after exact receipt and bootstrap-marker verification.
 
 | # | Rollover scenario | Current evidence | Notes |
 | ---: | --- | --- | --- |
@@ -70,6 +65,6 @@ Cross-conversation rollover is now implemented deterministically through Phase C
 | R6 | Automatic New Chat creation and verified successor `/c/...` binding | AUTOMATED PASS; AUTH LIVE REQUIRED | Explicit New Chat control detection, tab-bound lease continuity across source -> transient -> successor navigation, pre-click and pre-submit persistence, exact bootstrap receipt, token-bound response verification, durable lineage binding, and normal Goal-queue resumption are covered. No successor URL is fabricated. Current-site authenticated execution remains required. |
 | R7 | Proactive rollover before hard exhaustion | AUTOMATED PASS; AUTH LIVE REQUIRED | Observable message/text growth plus durable Goal continuation thresholds trigger only at productive Goal boundaries. Fresh handoff generation/verification is restart-safe, queue-deduplicated, tab-bound, bounded by cooldown/attempt limits, and hard exhaustion preempts further source prompting. No invented context percentage is used. |
 | R8 | Multi-generation project endurance A->B->C->D | AUTOMATED PASS; AUTH LIVE REQUIRED | Deterministic endurance covers A proactive -> B hard-limit -> C proactive -> D with repeated service-worker restarts, stable project identity, ordered generations, successor links, inert retired sources, and active D. Current-site authenticated execution remains required. |
-| R9 | Live current-ChatGPT cross-conversation rollover | AUTH LIVE REQUIRED | Phase F after deterministic transaction/binding coverage is complete. |
+| R9 | Live current-ChatGPT cross-conversation rollover | AUTH LIVE REQUIRED | Checkpoint 022 is the exact v1.2.0 candidate for Phase F; no live PASS is claimed until the digest-bound receipt validates. |
 
 The source-chat tombstone is deliberately fail-closed and survives service-worker restart. It is stored outside the conversation DOM, so a reload that restores prior ChatGPT content cannot make the extension forget that the route is exhausted. No part of this mechanism bypasses ChatGPT/OpenAI account, subscription, model, usage, rate, access, or safety limits.

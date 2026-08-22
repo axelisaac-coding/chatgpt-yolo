@@ -1,14 +1,23 @@
 {
   "branch": "continuation-supervisor-development",
-  "checkpoint": 21,
-  "implementationCommit": "d2b9c1b0468482fced462a954066758205169061",
-  "phaseCompleted": "D+E",
-  "phaseNext": "F",
-  "progressPercent": 97,
-  "validation": {"nonEnvironmental":"355/355","focusedPhaseDE":"145/145","runtimeFiles":39,"archiveParity":"39/39"},
-  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-021-proactive-endurance-d2b9c1b.zip",
-  "sourceSha256": "0A5728F5C018BC8734F6B89B4432D2EB41624275F77FB305D0AFAEABB2304FC3",
-  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-d2b9c1b.zip",
-  "browserCandidateSha256": "EA724CD81AB747CB76B1BAFAE03CBD3D4F60BAD203558A6CA11189F08A32CAC9",
-  "next": "Phase F: authenticated live current-ChatGPT rollover qualification, then Phase G release hardening"
+  "checkpoint": 22,
+  "version": "1.2.0",
+  "implementationCommit": "57fba57c3cf7c3a6fc28f5bc300da2f59fe745de",
+  "phaseCompleted": "D+E plus pre-live Phase G release hardening",
+  "phaseNext": "F authenticated live qualification",
+  "progressPercent": 99,
+  "validation": {
+    "fullSuite": "381/381",
+    "environmentExclusions": 0,
+    "runtimeFiles": 39,
+    "archiveParity": "39/39",
+    "assetValidation": "passed"
+  },
+  "runtimeDigestSha256": "831114494EC46B3655B2DA1A4C7C3BC60BA829F03B0FD118FA962F2C14286A60",
+  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-022-v1.2.0-live-candidate-57fba57.zip",
+  "sourceSha256": "A9325B49A40E632BE84BCFFC1AC7E112995D10D0B8B726F16A7F795DC9671E34",
+  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-v1.2.0-57fba57.zip",
+  "browserCandidateSha256": "22BBB573D56CD1ED4AC4158E5730CC510D728E210C9E08CEA339DACFEE167D48",
+  "liveLoadFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
+  "next": "Run authenticated live saved-source to real successor rollover on unchanged checkpoint-022 runtime; record matching live receipt; validate:live; only then publish v1.2.0"
 }
