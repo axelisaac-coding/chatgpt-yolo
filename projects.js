@@ -7,14 +7,16 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, (Shared, Commands) => {
   "use strict";
 
-  const PROJECT_SCHEMA_VERSION = 2;
+  const PROJECT_SCHEMA_VERSION = 3;
   const MAX_PROJECTS = 100;
   const MAX_CONVERSATIONS = 64;
   const PROJECT_STATUSES = new Set(["active", "rollover_required", "rolling_over", "completed", "stopped"]);
   const CONVERSATION_STATUSES = new Set(["active", "rolling_over", "exhausted", "completed", "failed"]);
   const ROLLOVER_STAGES = new Set(["idle", "required", "handoff_pending", "handoff_ready", "successor_pending", "bootstrap_pending", "successor_bound", "resuming", "complete", "failed"]);
   const ROLLOVER_LEASE_MS = 2 * 60 * 1000;
+  const BOOTSTRAP_STATES = new Set(["idle", "prepared", "submitting", "observed", "verified", "delivery_unknown"]);
   const MAX_HANDOFF_LENGTH = 6000;
+  const MAX_BOOTSTRAP_LENGTH = 30000;
   const cleanText = (value, max = 4000) => String(value ?? "").trim().slice(0, max);
   const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
@@ -71,7 +73,7 @@
   }
 
   function freshRollover() {
-    return { stage: "idle", sourcePageId: "", reason: "", ownerId: "", leaseToken: "", leaseExpiresAt: 0, startedAt: 0, updatedAt: 0, handoffSource: "", handoffFingerprint: "", successorPageId: "", error: "" };
+    return { stage: "idle", sourcePageId: "", reason: "", ownerId: "", leaseToken: "", leaseExpiresAt: 0, startedAt: 0, updatedAt: 0, handoffSource: "", handoffFingerprint: "", successorPageId: "", newChatRequestedAt: 0, newChatOpeningAt: 0, bootstrapText: "", bootstrapFingerprint: "", bootstrapToken: "", bootstrapState: "idle", bootstrapSubmittedAt: 0, bootstrapObservedAt: 0, bootstrapVerifiedAt: 0, error: "" };
   }
 
   function normalizeRollover(raw = {}) {
@@ -88,6 +90,15 @@
       handoffSource: cleanText(rollover.handoffSource, 80),
       handoffFingerprint: cleanText(rollover.handoffFingerprint, 180),
       successorPageId: cleanText(rollover.successorPageId, 1000),
+      newChatRequestedAt: Math.max(0, finite(rollover.newChatRequestedAt, 0)),
+      newChatOpeningAt: Math.max(0, finite(rollover.newChatOpeningAt, 0)),
+      bootstrapText: cleanText(rollover.bootstrapText, MAX_BOOTSTRAP_LENGTH),
+      bootstrapFingerprint: cleanText(rollover.bootstrapFingerprint, 180),
+      bootstrapToken: cleanText(rollover.bootstrapToken, 180),
+      bootstrapState: BOOTSTRAP_STATES.has(rollover.bootstrapState) ? rollover.bootstrapState : "idle",
+      bootstrapSubmittedAt: Math.max(0, finite(rollover.bootstrapSubmittedAt, 0)),
+      bootstrapObservedAt: Math.max(0, finite(rollover.bootstrapObservedAt, 0)),
+      bootstrapVerifiedAt: Math.max(0, finite(rollover.bootstrapVerifiedAt, 0)),
       error: cleanText(rollover.error, 500)
     };
   }
@@ -197,9 +208,12 @@
     entry.lastVerifiedCheckpoint = cleanText(workflow.supervisor?.lastProgressFingerprint, 180);
     if (project.status !== "rolling_over") project.status = "rollover_required";
     project.currentConversationId = pageId;
-    const rollover = normalizeRollover(project.rollover);
+    const priorRollover = normalizeRollover(project.rollover);
+    const rollover = priorRollover.sourcePageId && priorRollover.sourcePageId !== pageId ? freshRollover() : priorRollover;
     project.rollover = { ...rollover, stage: rollover.stage === "idle" ? "required" : rollover.stage, sourcePageId: pageId, reason: entry.rolloverReason, startedAt: rollover.startedAt || at, updatedAt: at, error: "" };
     project.supervisor = Commands.normalizeSupervisorState(workflow.supervisor || project.supervisor);
+    const checkpoint = cleanText(project.supervisor.lastProgressFingerprint, 180);
+    if (checkpoint) project.latestVerifiedCheckpoint = { id: checkpoint, at: project.supervisor.lastProgressAt || at };
     project.updatedAt = at;
     project.revision += 1;
     return normalizeProject(project, project.id, at);
@@ -315,9 +329,9 @@
     if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
     const current = project.rollover.stage;
     if (nextStage !== current && !ROLLOVER_TRANSITIONS[current]?.has(nextStage)) return { ok: false, code: "project.rollover_transition_invalid", reason: "Cannot advance rollover from " + current + " to " + nextStage, project };
-    project.rollover = { ...project.rollover, stage: nextStage, updatedAt: at, handoffSource: cleanText(handoffSource || project.rollover.handoffSource, 80), successorPageId: cleanText(successorPageId || project.rollover.successorPageId, 1000), error: cleanText(error, 500) };
+    project.rollover = { ...project.rollover, stage: nextStage, updatedAt: at, handoffSource: cleanText(handoffSource || project.rollover.handoffSource, 80), successorPageId: cleanText(successorPageId || project.rollover.successorPageId, 1000), newChatRequestedAt: nextStage === "successor_pending" ? (project.rollover.newChatRequestedAt || at) : project.rollover.newChatRequestedAt, error: cleanText(error, 500) };
     if (nextStage === "failed") project.status = "rollover_required";
-    else if (nextStage === "complete") project.status = "active";
+    else if (nextStage === "complete") { project.status = "active"; project.rollover.ownerId = ""; project.rollover.leaseToken = ""; project.rollover.leaseExpiresAt = 0; }
     else project.status = "rolling_over";
     project.revision += 1;
     project.updatedAt = at;
@@ -379,7 +393,7 @@
   function selectRolloverFallback(rawProject) {
     const project = normalizeProject(rawProject, rawProject?.id);
     const handoff = normalizeHandoff(project.latestHandoff);
-    if (handoff.verified && handoff.text) return { kind: "verified_handoff", handoff, checkpoint: project.latestVerifiedCheckpoint, objective: project.objective };
+    if (handoff.verified && handoff.text && handoff.generation === project.currentGeneration && handoff.sourcePageId === project.rollover.sourcePageId) return { kind: "verified_handoff", handoff, checkpoint: project.latestVerifiedCheckpoint, objective: project.objective };
     if (project.latestVerifiedCheckpoint.id) return { kind: "checkpoint", handoff: freshHandoff(), checkpoint: project.latestVerifiedCheckpoint, objective: project.objective };
     return { kind: "machine_state", handoff: freshHandoff(), checkpoint: project.latestVerifiedCheckpoint, objective: project.objective };
   }
@@ -426,12 +440,183 @@
     ].join("\n\n");
   }
 
+  function isDurableConversationPageId(value) {
+    try {
+      const parsed = new URL(String(value || ""));
+      const host = parsed.hostname.toLowerCase();
+      const validHost = host === "chatgpt.com" || host.endsWith(".chatgpt.com");
+      const defaultPort = parsed.port === "" || parsed.port === "443";
+      return parsed.protocol === "https:" && defaultPort && validHost
+        && /(?:^|\/)c\/[^/]+$/i.test(parsed.pathname.replace(/\/+$/, ""));
+    } catch {
+      return false;
+    }
+  }
+
+  function bootstrapVerificationMarker(token) {
+    return "[YOLO:BOOTSTRAP_READY:" + cleanText(token, 180) + "]";
+  }
+
+  function bootstrapToken(rawProject) {
+    const project = normalizeProject(rawProject, rawProject?.id);
+    const fallback = selectRolloverFallback(project);
+    const basis = fallback.kind === "verified_handoff"
+      ? fallback.handoff.fingerprint
+      : (fallback.checkpoint.id || fallback.kind);
+    return Commands.fingerprint(project.id + "|" + (project.currentGeneration + 1) + "|" + basis);
+  }
+
+  function bootstrapPrompt(rawProject) {
+    const project = normalizeProject(rawProject, rawProject?.id);
+    const fallback = selectRolloverFallback(project);
+    const token = bootstrapToken(project);
+    const context = fallback.kind === "verified_handoff"
+      ? fallback.handoff.text
+      : fallback.kind === "checkpoint"
+        ? "Latest verified checkpoint id: " + fallback.checkpoint.id + ". Recover exact state from durable project files/tools before continuing."
+        : "No semantic handoff was safely available. Recover exact state from durable project files/tools and the project objective before continuing.";
+    return [
+      "Continue this existing long-running project in a fresh ChatGPT conversation. This is a rollover, not a new project.",
+      "Project-ID: " + project.id,
+      "Generation: " + (project.currentGeneration + 1),
+      "Original objective: " + project.originalRequirements,
+      "Rollover context:", context,
+      "Preserve settled requirements. Verify uncertain state from durable files/tools. Do not redo settled audits or claim unverified work.",
+      "For this bootstrap response only, summarize the state you successfully recovered and the first concrete next action. End with exactly:",
+      bootstrapVerificationMarker(token)
+    ].join("\n\n");
+  }
+
+  function markNewChatOpening(rawProject, options = {}) {
+    const { ownerId = "", leaseToken = "", at = Date.now() } = options;
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.stage !== "bootstrap_pending" || project.rollover.bootstrapState !== "prepared") return { ok: false, code: "project.new_chat_stage_invalid", reason: "New Chat navigation is not ready", project };
+    if (project.rollover.successorPageId) return { ok: false, code: "project.successor_already_known", reason: "Successor conversation already exists", project };
+    if (project.rollover.newChatOpeningAt) return { ok: true, code: "project.new_chat_opening", project, alreadyMarked: true };
+    project.rollover = { ...project.rollover, newChatOpeningAt: at, updatedAt: at, error: "" };
+    project.revision += 1; project.updatedAt = at;
+    return { ok: true, code: "project.new_chat_opening", project: normalizeProject(project, project.id, at), alreadyMarked: false };
+  }
+
+  function prepareBootstrap(rawProject, options = {}) {
+    const { ownerId = "", leaseToken = "", at = Date.now() } = options;
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.stage !== "successor_pending") return { ok: false, code: "project.bootstrap_stage_invalid", reason: "Bootstrap is not ready to prepare", project };
+    const text = cleanText(bootstrapPrompt(project), MAX_BOOTSTRAP_LENGTH);
+    const token = bootstrapToken(project);
+    project.rollover = {
+      ...project.rollover,
+      stage: "bootstrap_pending",
+      bootstrapText: text,
+      bootstrapFingerprint: Commands.fingerprint(text),
+      bootstrapToken: token,
+      bootstrapState: "prepared",
+      updatedAt: at,
+      error: ""
+    };
+    project.revision += 1;
+    project.updatedAt = at;
+    return { ok: true, code: "project.bootstrap_prepared", project: normalizeProject(project, project.id, at) };
+  }
+
+  function markBootstrapSubmitting(rawProject, options = {}) {
+    const { ownerId = "", leaseToken = "", at = Date.now() } = options;
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.stage !== "bootstrap_pending" || project.rollover.bootstrapState !== "prepared") return { ok: false, code: "project.bootstrap_not_prepared", reason: "Bootstrap is not safely prepared", project };
+    project.rollover = { ...project.rollover, bootstrapState: "submitting", bootstrapSubmittedAt: at, updatedAt: at, error: "" };
+    project.revision += 1;
+    project.updatedAt = at;
+    return { ok: true, code: "project.bootstrap_submitting", project: normalizeProject(project, project.id, at) };
+  }
+
+  function observeBootstrapSuccessor(rawProject, successorPageId, observedUserText, options = {}) {
+    const { ownerId = "", leaseToken = "", at = Date.now() } = options;
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.stage !== "bootstrap_pending" || project.rollover.bootstrapState !== "submitting") return { ok: false, code: "project.bootstrap_not_submitting", reason: "Bootstrap submission is not awaiting observation", project };
+    const successor = cleanText(successorPageId, 1000);
+    if (!isDurableConversationPageId(successor) || successor === project.rollover.sourcePageId) return { ok: false, code: "project.successor_invalid", reason: "Successor must be a new durable ChatGPT conversation", project };
+    if (project.conversationChain.some((entry) => entry.pageId === successor)) return { ok: false, code: "project.successor_duplicate", reason: "Successor conversation is already in this project lineage", project };
+    const observedFingerprint = Commands.fingerprint(String(observedUserText || "").trim());
+    if (!observedFingerprint || observedFingerprint !== project.rollover.bootstrapFingerprint) return { ok: false, code: "project.bootstrap_receipt_mismatch", reason: "Observed user message does not match the durable bootstrap", project };
+    project.rollover = { ...project.rollover, successorPageId: successor, bootstrapState: "observed", bootstrapObservedAt: at, updatedAt: at, error: "" };
+    project.revision += 1;
+    project.updatedAt = at;
+    return { ok: true, code: "project.bootstrap_observed", project: normalizeProject(project, project.id, at) };
+  }
+
+  function evaluateBootstrapVerification(text, token) {
+    const value = String(text || "").trim();
+    const markers = [...value.matchAll(/(?:^|\n)[ \t]*\[YOLO:BOOTSTRAP_READY:([^\]\r\n]{1,180})\][ \t]*(?=\n|$)/gi)];
+    if (markers.length !== 1) return { kind: markers.length ? "malformed" : "missing", token: "" };
+    const terminal = value.match(/(?:^|\n)[ \t]*\[YOLO:BOOTSTRAP_READY:([^\]\r\n]{1,180})\][ \t]*$/i);
+    if (!terminal) return { kind: "malformed", token: "" };
+    const found = cleanText(terminal[1], 180);
+    if (found !== cleanText(token, 180)) return { kind: "stale", token: found };
+    return { kind: "verified", token: found };
+  }
+
+  function verifyBootstrapSuccessor(rawProject, responseText, options = {}) {
+    const { ownerId = "", leaseToken = "", at = Date.now() } = options;
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.stage !== "bootstrap_pending" || project.rollover.bootstrapState !== "observed" || !project.rollover.successorPageId) return { ok: false, code: "project.bootstrap_not_observed", reason: "Bootstrap successor is not ready for verification", project };
+    const verification = evaluateBootstrapVerification(responseText, project.rollover.bootstrapToken);
+    if (verification.kind !== "verified") return { ok: false, code: "project.bootstrap_" + verification.kind, reason: "Bootstrap verification was " + verification.kind, project, verification };
+    const successor = project.rollover.successorPageId;
+    const nextGeneration = project.currentGeneration + 1;
+    const sourceEntry = project.conversationChain.find((entry) => entry.pageId === project.rollover.sourcePageId);
+    if (sourceEntry) sourceEntry.successorPageId = successor;
+    project.conversationChain.push(freshConversation(successor, nextGeneration, at));
+    project.currentConversationId = successor;
+    project.currentGeneration = nextGeneration;
+    project.status = "rolling_over";
+    project.rollover = {
+      ...project.rollover,
+      stage: "successor_bound",
+      bootstrapState: "verified",
+      bootstrapVerifiedAt: at,
+      updatedAt: at,
+      error: ""
+    };
+    project.revision += 1;
+    project.updatedAt = at;
+    return { ok: true, code: "project.bootstrap_verified", project: normalizeProject(project, project.id, at), verification };
+  }
+
+  function cancelBootstrapSubmission(rawProject, options = {}) {
+    const { ownerId = "", leaseToken = "", at = Date.now() } = options;
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.stage !== "bootstrap_pending" || project.rollover.bootstrapState !== "submitting" || project.rollover.successorPageId) return { ok: false, code: "project.bootstrap_cancel_unsafe", reason: "Bootstrap submission can no longer be safely cancelled", project };
+    project.rollover = { ...project.rollover, bootstrapState: "prepared", bootstrapSubmittedAt: 0, updatedAt: at, error: "" };
+    project.revision += 1; project.updatedAt = at;
+    return { ok: true, code: "project.bootstrap_submission_cancelled", project: normalizeProject(project, project.id, at) };
+  }
+
+  function markBootstrapDeliveryUnknown(rawProject, options = {}) {
+    const { ownerId = "", leaseToken = "", at = Date.now(), reason = "Bootstrap delivery could not be confirmed" } = options;
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    if (!rolloverLeaseMatches(project, ownerId, leaseToken, at)) return { ok: false, code: "project.rollover_lease_lost", reason: "Rollover lease is not owned by this tab", project };
+    if (project.rollover.stage !== "bootstrap_pending" || project.rollover.bootstrapState !== "submitting") return { ok: false, code: "project.bootstrap_state_invalid", reason: "Bootstrap delivery is not ambiguous", project };
+    project.rollover = { ...project.rollover, bootstrapState: "delivery_unknown", error: cleanText(reason, 500), updatedAt: at };
+    project.status = "rollover_required";
+    project.revision += 1;
+    project.updatedAt = at;
+    return { ok: true, code: "project.bootstrap_delivery_unknown", project: normalizeProject(project, project.id, at) };
+  }
+
   return Object.freeze({
     PROJECT_SCHEMA_VERSION,
     MAX_PROJECTS,
     MAX_CONVERSATIONS,
+    MAX_BOOTSTRAP_LENGTH,
     ROLLOVER_LEASE_MS,
     ROLLOVER_STAGES,
+    BOOTSTRAP_STATES,
     freshHandoff,
     normalizeHandoff,
     freshRollover,
@@ -459,6 +644,18 @@
     selectRolloverFallback,
     applyRolloverFallback,
     handoffGenerationPrompt,
-    handoffVerificationPrompt
+    handoffVerificationPrompt,
+    isDurableConversationPageId,
+    bootstrapVerificationMarker,
+    bootstrapToken,
+    bootstrapPrompt,
+    markNewChatOpening,
+    prepareBootstrap,
+    markBootstrapSubmitting,
+    observeBootstrapSuccessor,
+    evaluateBootstrapVerification,
+    verifyBootstrapSuccessor,
+    cancelBootstrapSubmission,
+    markBootstrapDeliveryUnknown
   });
 });

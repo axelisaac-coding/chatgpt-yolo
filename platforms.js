@@ -31,6 +31,14 @@
         "form textarea",
         "form div[contenteditable='true'][role='textbox']"
       ],
+      newChatSelectors: [
+        "a[data-testid='create-new-chat-button']",
+        "button[data-testid='create-new-chat-button']",
+        "a[aria-label*='New chat' i]",
+        "button[aria-label*='New chat' i]",
+        "a[title*='New chat' i]",
+        "button[title*='New chat' i]"
+      ],
       sendSelectors: [
         "button[data-testid='send-button']",
         "button[aria-label*='Send' i]",
@@ -95,6 +103,31 @@
 
   function uniqueElements(elements) {
     return Array.from(new Set(elements.filter(Boolean)));
+  }
+
+  function newChatSignal(element) {
+    if (!element || !visible(element) || isDisabled(element)) return false;
+    const label = String(element.getAttribute?.("aria-label") || element.getAttribute?.("title") || normalizedText(element)).trim();
+    const testId = String(element.getAttribute?.("data-testid") || "");
+    return /\bnew (?:chat|conversation)\b/i.test(label) || /create-new-chat/i.test(testId);
+  }
+
+  function findNewChatControl(adapter, documentLike = document) {
+    if (!adapter) return null;
+    const explicit = uniqueElements((adapter.newChatSelectors || []).flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    const candidates = explicit.length ? explicit : Array.from(documentLike.querySelectorAll("a, button"));
+    return candidates.filter(newChatSignal).sort((a, b) => {
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      return ar.top - br.top || ar.left - br.left;
+    })[0] || null;
+  }
+
+  function openNewChat(adapter, documentLike = document) {
+    const control = findNewChatControl(adapter, documentLike);
+    if (!control) return false;
+    control.click();
+    return true;
   }
 
   function findComposer(adapter, documentLike = document) {
@@ -426,6 +459,8 @@
     buttonText,
     isDisabled,
     findComposer,
+    findNewChatControl,
+    openNewChat,
     findSendButton,
     isGenerating,
     findErrorState,

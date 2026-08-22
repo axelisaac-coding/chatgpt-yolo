@@ -457,6 +457,12 @@ async function handleWorkflowMessage(message, sender) {
   }));
 }
 
+function projectMutationOwner(message, sender) {
+  const tabId = Number(sender?.tab?.id);
+  if (Number.isInteger(tabId) && tabId >= 0) return "tab:" + tabId;
+  return String(message?.ownerId || "").trim().slice(0, 220);
+}
+
 async function handleProjectMessage(message, sender) {
   const pageId = String(message.pageId || "").trim().slice(0, 1000);
   const projectId = String(message.projectId || "").trim().slice(0, 180);
@@ -483,11 +489,12 @@ async function handleProjectMessage(message, sender) {
       return { ok: false, reason: "Project changed in another tab", code: "project.conflict", project: current };
     }
     let result = null;
-    const options = { ownerId: message.ownerId, leaseToken: message.leaseToken, at: Date.now() };
+    const ownerId = projectMutationOwner(message, sender);
+    const options = { ownerId, leaseToken: message.leaseToken, at: Date.now() };
     if (message.type === "YOLO_PROJECT_ROLLOVER_CLAIM") {
-      result = Projects.claimRollover(current, message.ownerId, { at: options.at, leaseMs: message.leaseMs });
+      result = Projects.claimRollover(current, ownerId, { at: options.at, leaseMs: message.leaseMs });
     } else if (message.type === "YOLO_PROJECT_ROLLOVER_RELEASE") {
-      result = Projects.releaseRollover(current, message.ownerId, message.leaseToken, options.at);
+      result = Projects.releaseRollover(current, ownerId, message.leaseToken, options.at);
     } else if (message.type === "YOLO_PROJECT_ROLLOVER_ADVANCE") {
       result = Projects.advanceRollover(current, message.stage, {
         ...options,
@@ -501,6 +508,20 @@ async function handleProjectMessage(message, sender) {
       result = Projects.verifyHandoff(current, message.verificationText, options);
     } else if (message.type === "YOLO_PROJECT_ROLLOVER_FALLBACK") {
       result = Projects.applyRolloverFallback(current, options);
+    } else if (message.type === "YOLO_PROJECT_NEW_CHAT_MARK_OPENING") {
+      result = Projects.markNewChatOpening(current, options);
+    } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_PREPARE") {
+      result = Projects.prepareBootstrap(current, options);
+    } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_MARK_SUBMITTING") {
+      result = Projects.markBootstrapSubmitting(current, options);
+    } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_OBSERVE") {
+      result = Projects.observeBootstrapSuccessor(current, message.successorPageId, message.observedUserText, options);
+    } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_VERIFY") {
+      result = Projects.verifyBootstrapSuccessor(current, message.responseText, options);
+    } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_CANCEL_SUBMITTING") {
+      result = Projects.cancelBootstrapSubmission(current, options);
+    } else if (message.type === "YOLO_PROJECT_BOOTSTRAP_DELIVERY_UNKNOWN") {
+      result = Projects.markBootstrapDeliveryUnknown(current, { ...options, reason: message.reason });
     } else if (message.type === "YOLO_PROJECT_HANDOFF_GENERATION_PROMPT") {
       return { ok: true, project: current, prompt: Projects.handoffGenerationPrompt(current) };
     } else if (message.type === "YOLO_PROJECT_HANDOFF_VERIFICATION_PROMPT") {

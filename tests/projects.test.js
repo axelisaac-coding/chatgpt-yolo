@@ -115,9 +115,9 @@ test("an exhausted tombstone cannot be hidden by a newer project on the same con
   assert.equal(tombstone.conversation.doNotContinue, true);
 });
 
-test("project schema v2 adds durable rollover and handoff state safely", () => {
+test("project schema migrations add durable rollover, handoff, and bootstrap state safely", () => {
   const project = Projects.normalizeProject({ id: "migrate-v1", version: 1, objective: "Migrate me", currentConversationId: pageA }, "migrate-v1", 1000);
-  assert.equal(project.version, 2);
+  assert.equal(project.version, Projects.PROJECT_SCHEMA_VERSION);
   assert.deepEqual(project.rollover, Projects.freshRollover());
   assert.deepEqual(project.latestHandoff, Projects.freshHandoff());
 });
@@ -260,4 +260,133 @@ test("repeated source exhaustion observation preserves an in-progress rollover l
   assert.equal(repeated.project.rollover.ownerId, "tab-a");
   assert.equal(repeated.project.rollover.leaseToken, claim.leaseToken);
   assert.equal(repeated.project.rollover.stage, "required");
+});
+
+function bootstrapReadyProject(at = 3000) {
+  const rolled = Projects.ensureProjectForWorkflow({}, pageA, {
+    kind: "goal", objective: "Cross conversation bootstrap", status: "rollover_required", reason: "hard context limit",
+    supervisor: { lastProgressFingerprint: "checkpoint-bootstrap", lastProgressAt: at - 200 }
+  }, at).project;
+  const claim = Projects.claimRollover(rolled, "tab-rollover", { at: at + 10, leaseMs: 60000 });
+  const fallback = Projects.applyRolloverFallback(claim.project, { ownerId: "tab-rollover", leaseToken: claim.leaseToken, at: at + 20 });
+  const successorPending = Projects.advanceRollover(fallback.project, "successor_pending", { ownerId: "tab-rollover", leaseToken: claim.leaseToken, at: at + 30 });
+  return { project: successorPending.project, leaseToken: claim.leaseToken, at };
+}
+
+test("bootstrap is durably prepared before a transient new-chat submission", () => {
+  const ready = bootstrapReadyProject();
+  const prepared = Projects.prepareBootstrap(ready.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 3040 });
+  assert.equal(prepared.ok, true);
+  assert.equal(prepared.project.rollover.stage, "bootstrap_pending");
+  assert.equal(prepared.project.rollover.bootstrapState, "prepared");
+  assert.match(prepared.project.rollover.bootstrapText, /Project-ID:/);
+  assert.match(prepared.project.rollover.bootstrapText, /Generation: 2/);
+  assert.match(prepared.project.rollover.bootstrapText, /BOOTSTRAP_READY/);
+  assert.ok(prepared.project.rollover.bootstrapFingerprint);
+  assert.ok(prepared.project.rollover.bootstrapToken);
+});
+
+test("successor binding requires an exact durable bootstrap receipt and verified marker", () => {
+  const ready = bootstrapReadyProject(4000);
+  const prepared = Projects.prepareBootstrap(ready.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 4040 });
+  const submitting = Projects.markBootstrapSubmitting(prepared.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 4050 });
+  assert.equal(submitting.project.rollover.bootstrapState, "submitting");
+  const successor = "https://chatgpt.com/c/project-b";
+  const mismatch = Projects.observeBootstrapSuccessor(submitting.project, successor, "wrong prompt", { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 4060 });
+  assert.equal(mismatch.code, "project.bootstrap_receipt_mismatch");
+  const observed = Projects.observeBootstrapSuccessor(submitting.project, successor, submitting.project.rollover.bootstrapText, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 4070 });
+  assert.equal(observed.ok, true);
+  assert.equal(observed.project.currentConversationId, pageA);
+  assert.equal(observed.project.rollover.bootstrapState, "observed");
+  const stale = Projects.verifyBootstrapSuccessor(observed.project, "[YOLO:BOOTSTRAP_READY:wrong]", { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 4080 });
+  assert.equal(stale.code, "project.bootstrap_stale");
+  const marker = Projects.bootstrapVerificationMarker(observed.project.rollover.bootstrapToken);
+  const verified = Projects.verifyBootstrapSuccessor(observed.project, `Recovered state.\n${marker}`, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 4090 });
+  assert.equal(verified.ok, true);
+  assert.equal(verified.project.currentConversationId, successor);
+  assert.equal(verified.project.currentGeneration, 2);
+  assert.equal(verified.project.rollover.stage, "successor_bound");
+  assert.equal(verified.project.conversationChain.length, 2);
+  assert.equal(verified.project.conversationChain[0].successorPageId, successor);
+  assert.equal(verified.project.conversationChain[0].doNotContinue, true);
+});
+
+test("ambiguous bootstrap delivery fails closed instead of becoming retryable", () => {
+  const ready = bootstrapReadyProject(5000);
+  const prepared = Projects.prepareBootstrap(ready.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 5040 });
+  const submitting = Projects.markBootstrapSubmitting(prepared.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 5050 });
+  const unknown = Projects.markBootstrapDeliveryUnknown(submitting.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 5060, reason: "navigation outcome unknown" });
+  assert.equal(unknown.ok, true);
+  assert.equal(unknown.project.rollover.bootstrapState, "delivery_unknown");
+  assert.equal(unknown.project.status, "rollover_required");
+  const retry = Projects.markBootstrapSubmitting(unknown.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 5070 });
+  assert.equal(retry.ok, false);
+  assert.equal(retry.code, "project.bootstrap_not_prepared");
+});
+
+test("completed rollover returns the project to active and releases its lease", () => {
+  const ready = bootstrapReadyProject(6000);
+  let result = Projects.prepareBootstrap(ready.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 6040 });
+  result = Projects.markBootstrapSubmitting(result.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 6050 });
+  result = Projects.observeBootstrapSuccessor(result.project, "https://chatgpt.com/c/project-c", result.project.rollover.bootstrapText, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 6060 });
+  result = Projects.verifyBootstrapSuccessor(result.project, Projects.bootstrapVerificationMarker(result.project.rollover.bootstrapToken), { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 6070 });
+  result = Projects.advanceRollover(result.project, "resuming", { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 6080 });
+  result = Projects.advanceRollover(result.project, "complete", { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 6090 });
+  assert.equal(result.ok, true);
+  assert.equal(result.project.status, "active");
+  assert.equal(result.project.rollover.stage, "complete");
+  assert.equal(result.project.rollover.ownerId, "");
+  assert.equal(result.project.rollover.leaseToken, "");
+});
+
+test("new-chat opening is persisted once before the navigation side effect", () => {
+  let project = Projects.ensureProjectForWorkflow({}, pageA, {
+    kind: "goal", objective: "Open one successor", status: "rollover_required", reason: "context limit"
+  }, 1000).project;
+  const claim = Projects.claimRollover(project, "tab-a", { at: 1100 });
+  const fallback = Projects.applyRolloverFallback(claim.project, { ownerId: "tab-a", leaseToken: claim.leaseToken, at: 1200 });
+  const pending = Projects.advanceRollover(fallback.project, "successor_pending", { ownerId: "tab-a", leaseToken: claim.leaseToken, at: 1300 });
+  const prepared = Projects.prepareBootstrap(pending.project, { ownerId: "tab-a", leaseToken: claim.leaseToken, at: 1400 });
+  const marked = Projects.markNewChatOpening(prepared.project, { ownerId: "tab-a", leaseToken: claim.leaseToken, at: 1500 });
+  assert.equal(marked.ok, true);
+  assert.equal(marked.alreadyMarked, false);
+  assert.equal(marked.project.rollover.newChatOpeningAt, 1500);
+  const repeated = Projects.markNewChatOpening(marked.project, { ownerId: "tab-a", leaseToken: claim.leaseToken, at: 1600 });
+  assert.equal(repeated.ok, true);
+  assert.equal(repeated.alreadyMarked, true);
+  assert.equal(repeated.project.revision, marked.project.revision);
+  assert.equal(repeated.project.rollover.newChatOpeningAt, 1500);
+});
+test("a later successor exhaustion starts a fresh rollover transaction and ignores stale handoff text", () => {
+  const ready = bootstrapReadyProject(7000);
+  let result = Projects.prepareBootstrap(ready.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 7040 });
+  result = Projects.markBootstrapSubmitting(result.project, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 7050 });
+  const successor = "https://chatgpt.com/c/generation-two";
+  result = Projects.observeBootstrapSuccessor(result.project, successor, result.project.rollover.bootstrapText, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 7060 });
+  result = Projects.verifyBootstrapSuccessor(result.project, Projects.bootstrapVerificationMarker(result.project.rollover.bootstrapToken), { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 7070 });
+  result = Projects.advanceRollover(result.project, "resuming", { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 7080 });
+  result = Projects.advanceRollover(result.project, "complete", { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 7090 });
+  result.project.latestHandoff = { text: validHandoff(ready.project), verified: true, fingerprint: "stale-handoff", sourcePageId: pageA, generation: 1, basisCheckpointId: "old", at: 6500, verifiedAt: 6600 };
+  const exhausted = Projects.markConversationExhausted(result.project, successor, {
+    reason: "generation two context limit",
+    workflow: { supervisor: { lastProgressFingerprint: "generation-two-checkpoint", lastProgressAt: 7190 } },
+    at: 7200
+  });
+  assert.equal(exhausted.currentGeneration, 2);
+  assert.equal(exhausted.rollover.stage, "required");
+  assert.equal(exhausted.rollover.sourcePageId, successor);
+  assert.equal(exhausted.rollover.newChatOpeningAt, 0);
+  assert.equal(exhausted.rollover.bootstrapState, "idle");
+  assert.equal(Projects.selectRolloverFallback(exhausted).kind, "checkpoint");
+  assert.equal(Projects.selectRolloverFallback(exhausted).checkpoint.id, "generation-two-checkpoint");
+});
+test("long bootstrap text keeps one canonical persisted fingerprint and terminal verification marker", () => {
+  const ready = bootstrapReadyProject(8000);
+  ready.project.originalRequirements = "R".repeat(12000);
+  const normalized = Projects.normalizeProject(ready.project, ready.project.id, 8035);
+  const prepared = Projects.prepareBootstrap(normalized, { ownerId: "tab-rollover", leaseToken: ready.leaseToken, at: 8040 });
+  assert.equal(prepared.ok, true);
+  assert.ok(prepared.project.rollover.bootstrapText.length <= Projects.MAX_BOOTSTRAP_LENGTH);
+  assert.equal(prepared.project.rollover.bootstrapFingerprint, Commands.fingerprint(prepared.project.rollover.bootstrapText));
+  assert.match(prepared.project.rollover.bootstrapText, new RegExp(`\\[YOLO:BOOTSTRAP_READY:${prepared.project.rollover.bootstrapToken}\\]$`));
 });

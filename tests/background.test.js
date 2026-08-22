@@ -634,3 +634,147 @@ test("project lock prevents workflow sync from overwriting a claimed rollover le
   assert.ok(project.project.rollover.leaseToken);
   assert.equal(project.project.status, "rolling_over");
 });
+
+test("bootstrap transaction survives service-worker restart and binds only an observed durable successor", async () => {
+  const first = loadBackground();
+  const source = "https://chatgpt.com/c/bootstrap-source";
+  const started = await first.invoke({
+    type: "YOLO_WORKFLOW_SET", pageId: source, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Migrate across chats", status: "rollover_required", reason: "context limit" }
+  });
+  const claimed = await first.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: started.project.id,
+    expectedRevision: started.project.revision, ownerId: "rollover-tab", leaseMs: 60000
+  });
+  const fallback = await first.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_FALLBACK", projectId: started.project.id,
+    expectedRevision: claimed.project.revision, ownerId: "rollover-tab", leaseToken: claimed.leaseToken
+  });
+  const pending = await first.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_ADVANCE", projectId: started.project.id,
+    expectedRevision: fallback.project.revision, ownerId: "rollover-tab", leaseToken: claimed.leaseToken,
+    stage: "successor_pending"
+  });
+  const prepared = await first.invoke({
+    type: "YOLO_PROJECT_BOOTSTRAP_PREPARE", projectId: started.project.id,
+    expectedRevision: pending.project.revision, ownerId: "rollover-tab", leaseToken: claimed.leaseToken
+  });
+  assert.equal(prepared.ok, true);
+  assert.equal(prepared.project.rollover.bootstrapState, "prepared");
+
+  const second = loadBackground(first.storage);
+  const reloaded = await second.invoke({ type: "YOLO_PROJECT_GET", projectId: started.project.id });
+  assert.equal(reloaded.project.rollover.bootstrapFingerprint, prepared.project.rollover.bootstrapFingerprint);
+  const submitting = await second.invoke({
+    type: "YOLO_PROJECT_BOOTSTRAP_MARK_SUBMITTING", projectId: started.project.id,
+    expectedRevision: reloaded.project.revision, ownerId: "rollover-tab", leaseToken: claimed.leaseToken
+  });
+  const successor = "https://chatgpt.com/c/bootstrap-successor";
+  const observed = await second.invoke({
+    type: "YOLO_PROJECT_BOOTSTRAP_OBSERVE", projectId: started.project.id,
+    expectedRevision: submitting.project.revision, ownerId: "rollover-tab", leaseToken: claimed.leaseToken,
+    successorPageId: successor, observedUserText: submitting.project.rollover.bootstrapText
+  });
+  assert.equal(observed.ok, true);
+  assert.equal(observed.project.currentConversationId, source);
+  const marker = `[YOLO:BOOTSTRAP_READY:${observed.project.rollover.bootstrapToken}]`;
+  const verified = await second.invoke({
+    type: "YOLO_PROJECT_BOOTSTRAP_VERIFY", projectId: started.project.id,
+    expectedRevision: observed.project.revision, ownerId: "rollover-tab", leaseToken: claimed.leaseToken,
+    responseText: `Recovered persisted state.\n${marker}`
+  });
+  assert.equal(verified.ok, true);
+  assert.equal(verified.project.currentConversationId, successor);
+  assert.equal(verified.project.currentGeneration, 2);
+  assert.equal(verified.project.rollover.stage, "successor_bound");
+
+  const third = loadBackground(first.storage);
+  const durable = await third.invoke({ type: "YOLO_PROJECT_GET", projectId: started.project.id });
+  assert.equal(durable.project.currentConversationId, successor);
+  assert.equal(durable.project.conversationChain[0].successorPageId, successor);
+  assert.equal(durable.project.conversationChain[0].doNotContinue, true);
+});
+
+test("rollover lease ownership follows the real browser tab across content-script navigation", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/tab-bound-rollover";
+  const started = await invoke({
+    type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Keep tab ownership", status: "rollover_required", reason: "context limit" }
+  });
+  const senderA = { tab: { id: 41, url: pageId } };
+  const senderB = { tab: { id: 42, url: pageId } };
+  const first = await invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: started.project.id, expectedRevision: started.project.revision, ownerId: "content-a", leaseMs: 60000 }, senderA);
+  assert.equal(first.ok, true);
+  assert.equal(first.project.rollover.ownerId, "tab:41");
+  const sameTabReload = await invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: started.project.id, expectedRevision: first.project.revision, ownerId: "content-after-navigation", leaseMs: 60000 }, senderA);
+  assert.equal(sameTabReload.ok, true);
+  assert.equal(sameTabReload.leaseToken, first.leaseToken);
+  const duplicateTab = await invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: started.project.id, expectedRevision: first.project.revision, ownerId: "copied-session", leaseMs: 60000 }, senderB);
+  assert.equal(duplicateTab.ok, false);
+  assert.equal(duplicateTab.code, "project.rollover_busy");
+});
+
+test("background persists one New Chat opening marker under the tab-bound rollover lease", async () => {
+  const { invoke } = loadBackground();
+  const source = "https://chatgpt.com/c/new-chat-opening-source";
+  const sender = { tab: { id: 71, url: source } };
+  const started = await invoke({ type: "YOLO_WORKFLOW_SET", pageId: source, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Open successor once", status: "rollover_required", reason: "context limit" } }, sender);
+  const claimed = await invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: started.project.id,
+    expectedRevision: started.project.revision, ownerId: "content-a", leaseMs: 60000 }, sender);
+  const fallback = await invoke({ type: "YOLO_PROJECT_ROLLOVER_FALLBACK", projectId: started.project.id,
+    expectedRevision: claimed.project.revision, ownerId: "content-a", leaseToken: claimed.leaseToken }, sender);
+  const pending = await invoke({ type: "YOLO_PROJECT_ROLLOVER_ADVANCE", projectId: started.project.id,
+    expectedRevision: fallback.project.revision, ownerId: "content-a", leaseToken: claimed.leaseToken, stage: "successor_pending" }, sender);
+  const prepared = await invoke({ type: "YOLO_PROJECT_BOOTSTRAP_PREPARE", projectId: started.project.id,
+    expectedRevision: pending.project.revision, ownerId: "content-a", leaseToken: claimed.leaseToken }, sender);
+  const marked = await invoke({ type: "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", projectId: started.project.id,
+    expectedRevision: prepared.project.revision, ownerId: "content-a", leaseToken: claimed.leaseToken }, sender);
+  assert.equal(marked.ok, true);
+  assert.ok(marked.project.rollover.newChatOpeningAt > 0);
+  const duplicateTab = { tab: { id: 72, url: source } };
+  const blocked = await invoke({ type: "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", projectId: started.project.id,
+    expectedRevision: marked.project.revision, ownerId: "copied", leaseToken: claimed.leaseToken }, duplicateTab);
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.code, "project.rollover_lease_lost");
+});
+test("tab-bound rollover lease survives source to transient New Chat to durable successor navigation", async () => {
+  const { invoke } = loadBackground();
+  const source = "https://chatgpt.com/c/navigation-source";
+  const senderSource = { tab: { id: 81, url: source } };
+  const started = await invoke({ type: "YOLO_WORKFLOW_SET", pageId: source, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Navigate same tab", status: "rollover_required", reason: "context limit" } }, senderSource);
+  const claimed = await invoke({ type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: started.project.id,
+    expectedRevision: started.project.revision, ownerId: "source-runtime", leaseMs: 60000 }, senderSource);
+  const fallback = await invoke({ type: "YOLO_PROJECT_ROLLOVER_FALLBACK", projectId: started.project.id,
+    expectedRevision: claimed.project.revision, ownerId: "source-runtime", leaseToken: claimed.leaseToken }, senderSource);
+  const pending = await invoke({ type: "YOLO_PROJECT_ROLLOVER_ADVANCE", projectId: started.project.id,
+    expectedRevision: fallback.project.revision, ownerId: "source-runtime", leaseToken: claimed.leaseToken, stage: "successor_pending" }, senderSource);
+  const prepared = await invoke({ type: "YOLO_PROJECT_BOOTSTRAP_PREPARE", projectId: started.project.id,
+    expectedRevision: pending.project.revision, ownerId: "source-runtime", leaseToken: claimed.leaseToken }, senderSource);
+  const opening = await invoke({ type: "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", projectId: started.project.id,
+    expectedRevision: prepared.project.revision, ownerId: "source-runtime", leaseToken: claimed.leaseToken }, senderSource);
+  assert.equal(opening.project.rollover.ownerId, "tab:81");
+  const transient = { tab: { id: 81, url: "https://chatgpt.com/" } };
+  const duplicateTransient = { tab: { id: 82, url: "https://chatgpt.com/" } };
+  const blockedDuplicate = await invoke({ type: "YOLO_PROJECT_BOOTSTRAP_MARK_SUBMITTING", projectId: started.project.id,
+    expectedRevision: opening.project.revision, ownerId: "copied-session", leaseToken: claimed.leaseToken }, duplicateTransient);
+  assert.equal(blockedDuplicate.ok, false);
+  assert.equal(blockedDuplicate.code, "project.rollover_lease_lost");
+  const submitting = await invoke({ type: "YOLO_PROJECT_BOOTSTRAP_MARK_SUBMITTING", projectId: started.project.id,
+    expectedRevision: opening.project.revision, ownerId: "new-runtime-id", leaseToken: claimed.leaseToken }, transient);
+  assert.equal(submitting.ok, true);
+  assert.equal(submitting.project.rollover.ownerId, "tab:81");
+  const successor = "https://chatgpt.com/c/navigation-successor";
+  const senderSuccessor = { tab: { id: 81, url: successor } };
+  const observed = await invoke({ type: "YOLO_PROJECT_BOOTSTRAP_OBSERVE", projectId: started.project.id,
+    expectedRevision: submitting.project.revision, ownerId: "third-runtime-id", leaseToken: claimed.leaseToken,
+    successorPageId: successor, observedUserText: submitting.project.rollover.bootstrapText }, senderSuccessor);
+  assert.equal(observed.ok, true);
+  const verified = await invoke({ type: "YOLO_PROJECT_BOOTSTRAP_VERIFY", projectId: started.project.id,
+    expectedRevision: observed.project.revision, ownerId: "fourth-runtime-id", leaseToken: claimed.leaseToken,
+    responseText: `[YOLO:BOOTSTRAP_READY:${observed.project.rollover.bootstrapToken}]` }, senderSuccessor);
+  assert.equal(verified.ok, true);
+  assert.equal(verified.project.currentConversationId, successor);
+});

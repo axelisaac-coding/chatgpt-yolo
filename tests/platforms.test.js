@@ -216,3 +216,25 @@ test("ordinary new-chat suggestions without exhaustion evidence do not trigger r
   const doc = { querySelectorAll(selector) { return selector === "error" ? [element] : []; } };
   assert.equal(Platforms.conversationLimitState(adapter, doc), null);
 });
+
+test("new-chat control detection clicks only an explicit visible ChatGPT control", () => {
+  const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
+  const ownerDocument = { defaultView: view };
+  let clicks = 0;
+  const control = {
+    nodeType: 1, ownerDocument, disabled: false, textContent: "New chat",
+    getAttribute(name) { return name === "aria-label" ? "New chat" : null; },
+    getBoundingClientRect: () => ({ left: 10, top: 10, width: 120, height: 36, right: 130, bottom: 46 }),
+    click() { clicks += 1; }
+  };
+  const doc = { querySelectorAll(selector) { return /New chat|create-new-chat/.test(selector) ? [control] : []; } };
+  assert.equal(Platforms.findNewChatControl(Platforms.ADAPTERS.chatgpt, doc), control);
+  assert.equal(Platforms.openNewChat(Platforms.ADAPTERS.chatgpt, doc), true);
+  assert.equal(clicks, 1);
+});
+
+test("new-chat control detection ignores ordinary prose and unrelated navigation", () => {
+  const doc = { querySelectorAll() { return []; } };
+  assert.equal(Platforms.findNewChatControl(Platforms.ADAPTERS.chatgpt, doc), null);
+  assert.equal(Platforms.openNewChat(Platforms.ADAPTERS.chatgpt, doc), false);
+});

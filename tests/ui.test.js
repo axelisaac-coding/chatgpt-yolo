@@ -315,9 +315,12 @@ test("workflow observability exposes phase, cycle, progress, and circuit breaker
 });
 
 
-test("Supervisor status surfaces project identity while rollover-required chats stay non-resumable", () => {
+test("Supervisor status surfaces project and rollover state while rollover-required chats stay non-resumable", () => {
   const runtime = read("command-runtime.js");
   const ui = read("command-ui.js");
-  assert.match(runtime, /Project: workflow\.status === "idle" \? "—" : \(workflow\.projectId \|\| "Unlinked"\)/);
+  assert.match(runtime, /const project = await readProject\(state\.rolloverProjectId \|\| workflow\.projectId\)/);
+  assert.match(runtime, /"Rollover stage": project\?\.rollover\?\.stage/);
+  assert.match(runtime, /"Bootstrap state": project\?\.rollover\?\.bootstrapState/);
+  assert.match(runtime, /"Handoff source": project\?\.rollover\?\.handoffSource/);
   assert.doesNotMatch(ui, /\["paused", "stalled", "rate_limited", "human_required", "rollover_required", "blocked"\]\.includes\(currentWorkflow\.status\)/);
 });

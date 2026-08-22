@@ -14,6 +14,18 @@
 
   const POLL_MS = Lifecycle.VISIBLE_WORKFLOW_POLL_MS;
   const RESPONSE_SETTLE_MS = 1200;
+  const ROLLOVER_SESSION_KEY = "yoloRolloverProjectV1";
+  const NEW_CHAT_CONFIRM_TIMEOUT_MS = 15 * 1000;
+  const BOOTSTRAP_CONFIRM_TIMEOUT_MS = 60 * 1000;
+
+  function loadRolloverProjectId() {
+    try { return String(sessionStorage.getItem(ROLLOVER_SESSION_KEY) || "").trim().slice(0, 180); } catch { return ""; }
+  }
+  function saveRolloverProjectId(projectId) {
+    const id = String(projectId || "").trim().slice(0, 180);
+    try { if (id) sessionStorage.setItem(ROLLOVER_SESSION_KEY, id); else sessionStorage.removeItem(ROLLOVER_SESSION_KEY); } catch {}
+    return id;
+  }
   const state = {
     destroyed: false,
     pageId: "",
@@ -26,7 +38,8 @@
     unregisterEngineClient: null,
     lifecycleHandlers: [],
     mutationLock: Shared.createLock(),
-    ownerId: Shared.makeId("command")
+    ownerId: Shared.makeId("command"),
+    rolloverProjectId: loadRolloverProjectId()
   };
 
   const now = () => Date.now();
@@ -122,6 +135,71 @@
       leaseToken
     });
     return response?.ok ? response : null;
+  }
+
+  async function mutateProject(project, type, leaseToken, extra = {}) {
+    if (!project?.id) return null;
+    return backgroundSend({
+      type,
+      projectId: project.id,
+      expectedRevision: project.revision,
+      ownerId: state.ownerId,
+      leaseToken,
+      ...extra
+    });
+  }
+
+  async function advanceProjectRollover(project, leaseToken, stage, extra = {}) {
+    return mutateProject(project, "YOLO_PROJECT_ROLLOVER_ADVANCE", leaseToken, { stage, ...extra });
+  }
+
+  async function prepareProjectBootstrap(project, leaseToken) {
+    return mutateProject(project, "YOLO_PROJECT_BOOTSTRAP_PREPARE", leaseToken);
+  }
+
+  async function markNewChatOpening(project, leaseToken) {
+    return mutateProject(project, "YOLO_PROJECT_NEW_CHAT_MARK_OPENING", leaseToken);
+  }
+
+  async function markBootstrapSubmitting(project, leaseToken) {
+    return mutateProject(project, "YOLO_PROJECT_BOOTSTRAP_MARK_SUBMITTING", leaseToken);
+  }
+
+  async function cancelBootstrapSubmitting(project, leaseToken) {
+    return mutateProject(project, "YOLO_PROJECT_BOOTSTRAP_CANCEL_SUBMITTING", leaseToken);
+  }
+
+  async function markBootstrapUnknown(project, leaseToken, reason) {
+    return mutateProject(project, "YOLO_PROJECT_BOOTSTRAP_DELIVERY_UNKNOWN", leaseToken, { reason });
+  }
+
+  async function persistBootstrapUnknown(project, leaseToken, reason) {
+    const unknown = await markBootstrapUnknown(project, leaseToken, reason);
+    if (!unknown?.ok) return false;
+    clearRolloverSession();
+    await record(reason, "warning", "supervisor.rollover.bootstrap_delivery_unknown");
+    return true;
+  }
+
+  async function observeBootstrap(project, leaseToken, successorPageId, observedUserText) {
+    return mutateProject(project, "YOLO_PROJECT_BOOTSTRAP_OBSERVE", leaseToken, {
+      successorPageId,
+      observedUserText
+    });
+  }
+
+  async function verifyBootstrap(project, leaseToken, responseText) {
+    return mutateProject(project, "YOLO_PROJECT_BOOTSTRAP_VERIFY", leaseToken, { responseText });
+  }
+
+  function clearRolloverSession() {
+    state.rolloverProjectId = "";
+    saveRolloverProjectId("");
+  }
+
+  function currentIsDurableSuccessor(project) {
+    return Config.isDurablePageId(state.pageId)
+      && state.pageId !== project?.rollover?.sourcePageId;
   }
 
   async function writeWorkflow(workflow = state.workflow, pageId = state.pageId) {
@@ -317,9 +395,14 @@
     const apiState = engine()?.getState?.() || {};
     const queue = await queueState();
     const workflow = Commands.normalizeWorkflow(state.workflow);
+    const project = await readProject(state.rolloverProjectId || workflow.projectId);
     state.ui?.showStatus({
       Conversation: state.pageId || "Unavailable",
-      Project: workflow.status === "idle" ? "—" : (workflow.projectId || "Unlinked"),
+      Project: project?.id || (workflow.status === "idle" ? "-" : (workflow.projectId || "Unlinked")),
+      "Project generation": project?.currentGeneration || "-",
+      "Rollover stage": project?.rollover?.stage || "-",
+      "Bootstrap state": project?.rollover?.bootstrapState || "-",
+      "Handoff source": project?.rollover?.handoffSource || "-",
       Workflow: workflow.status === "idle" ? "None" : `/${workflow.kind} · ${workflow.status}`,
       Phase: workflow.status === "idle" ? "—" : Commands.workflowPhase(workflow),
       Objective: workflow.status === "idle" ? "—" : workflow.objective,
@@ -480,33 +563,201 @@
     return true;
   }
 
-  async function handleRollover() {
-    const workflow = Commands.normalizeWorkflow(state.workflow);
-    if (workflow.kind !== "goal" || workflow.status !== "rollover_required" || !workflow.projectId) return false;
-    let project = await readProject(workflow.projectId);
-    if (!project || ["completed", "stopped"].includes(project.status)) return false;
-    const stage = project.rollover?.stage || "idle";
-    if (["handoff_ready", "successor_pending", "bootstrap_pending", "successor_bound", "resuming", "complete"].includes(stage)) return false;
+  async function failProjectRollover(project, leaseToken, reason, code = "supervisor.rollover.failed") {
+    const failed = await advanceProjectRollover(project, leaseToken, "failed", { error: reason });
+    if (failed?.ok) {
+      clearRolloverSession();
+      await record(reason, "warning", code);
+    }
+    return Boolean(failed?.ok);
+  }
 
-    let leaseToken = "";
-    if (project.rollover?.ownerId === state.ownerId && project.rollover?.leaseToken && project.rollover?.leaseExpiresAt > now()) {
-      leaseToken = project.rollover.leaseToken;
-    } else {
-      const claimed = await claimProjectRollover(project);
-      if (!claimed) return false;
-      project = claimed.project;
-      leaseToken = claimed.leaseToken;
+  async function submitBootstrap(project, leaseToken) {
+    const text = String(project.rollover?.bootstrapText || "").trim();
+    const target = composer();
+    if (!text || !target) return false;
+    if (Platforms.latestUserText(adapter()) || Platforms.latestAssistantText(adapter())) {
+      return failProjectRollover(project, leaseToken, "New Chat bootstrap refused because the destination already contains conversation history", "supervisor.rollover.destination_not_fresh");
+    }
+    if (Platforms.composerText(target).trim()) {
+      await record("Rollover bootstrap is waiting for an empty composer", "warning", "supervisor.rollover.composer_busy", false);
+      return false;
+    }
+    const marked = await markBootstrapSubmitting(project, leaseToken);
+    if (!marked?.ok) return false;
+    project = marked.project;
+    try {
+      Platforms.setComposerValue(target, text);
+      const written = Commands.fingerprint(Platforms.composerText(target)) === project.rollover.bootstrapFingerprint;
+      if (!written) {
+        await cancelBootstrapSubmitting(project, leaseToken);
+        return false;
+      }
+      const submitted = Platforms.submitComposer(adapter(), target, document);
+      if (!submitted) {
+        if (Commands.fingerprint(Platforms.composerText(target)) === project.rollover.bootstrapFingerprint) Platforms.setComposerValue(target, "");
+        await cancelBootstrapSubmitting(project, leaseToken);
+        return false;
+      }
+      await record("Submitted persisted rollover bootstrap through ChatGPT New Chat", "info", "supervisor.rollover.bootstrap_submitted");
+      return true;
+    } catch (error) {
+      return persistBootstrapUnknown(project, leaseToken, `Bootstrap submission side effect became uncertain: ${Shared.errorMessage(error)}`);
+    }
+  }
+
+  async function resumeSuccessorGoal(project, leaseToken) {
+    if (!currentIsDurableSuccessor(project) || state.pageId !== project.currentConversationId) return false;
+    let current = await refreshWorkflow(state.pageId);
+    if (project.rollover.stage === "successor_bound") {
+      const advancing = await advanceProjectRollover(project, leaseToken, "resuming");
+      if (!advancing?.ok) return false;
+      project = advancing.project;
+    }
+    if (project.rollover.stage !== "resuming") return false;
+
+    if (!(current.kind === "goal" && current.projectId === project.id && current.status === "running")) {
+      if (current.status !== "idle") return failProjectRollover(project, leaseToken, "Successor conversation already has an unrelated workflow", "supervisor.rollover.successor_busy");
+      const started = Commands.startWorkflow("goal", project.objective, {
+        at: now(),
+        baselineFingerprint: latestAssistantFingerprint()
+      });
+      if (!started.ok) return failProjectRollover(project, leaseToken, started.reason || "Could not resume Goal workflow");
+      const next = Commands.normalizeWorkflow({
+        ...started.workflow,
+        projectId: project.id,
+        supervisor: project.supervisor,
+        revision: current.revision,
+        runnerId: state.ownerId
+      });
+      const prompt = Commands.workflowPrompt(next, "continue");
+      const queued = await queuePrompt(prompt, { workflow: next, source: "workflow:goal" });
+      if (!queued.ok) return failProjectRollover(project, leaseToken, queued.reason || "Could not queue successor Goal workflow");
+      current = await refreshWorkflow(state.pageId);
     }
 
-    if (!["required", "handoff_pending"].includes(project.rollover?.stage)) return false;
-    const fallback = await fallbackProjectRollover(project, leaseToken);
-    if (!fallback) return false;
-    await record(
-      `Conversation rollover handoff is ready from ${fallback.fallback?.kind || "durable project state"}`,
-      "info",
-      "supervisor.rollover.handoff_ready"
-    );
+    project = await readProject(project.id);
+    if (!project || project.rollover.stage !== "resuming") return false;
+    const completed = await advanceProjectRollover(project, leaseToken, "complete");
+    if (!completed?.ok) return false;
+    clearRolloverSession();
+    await record(`Project rollover completed in generation ${completed.project.currentGeneration}`, "success", "supervisor.rollover.complete");
     return true;
+  }
+
+  async function handleRollover() {
+    const workflow = Commands.normalizeWorkflow(state.workflow);
+    const projectId = state.rolloverProjectId || (workflow.kind === "goal" ? workflow.projectId : "");
+    if (!projectId) return false;
+    let project = await readProject(projectId);
+    if (!project) {
+      clearRolloverSession();
+      return false;
+    }
+    if (["completed", "stopped"].includes(project.status) || project.rollover?.stage === "complete") {
+      clearRolloverSession();
+      return false;
+    }
+    if (project.rollover?.stage === "failed" || project.rollover?.bootstrapState === "delivery_unknown") {
+      clearRolloverSession();
+      return false;
+    }
+
+    const claimed = await claimProjectRollover(project);
+    if (!claimed) return false;
+    project = claimed.project;
+    const leaseToken = claimed.leaseToken;
+    state.rolloverProjectId = saveRolloverProjectId(project.id);
+
+    if (["required", "handoff_pending"].includes(project.rollover.stage)) {
+      const fallback = await fallbackProjectRollover(project, leaseToken);
+      if (!fallback?.ok) return false;
+      project = fallback.project;
+      await record(`Conversation rollover handoff is ready from ${fallback.fallback?.kind || "durable project state"}`, "info", "supervisor.rollover.handoff_ready");
+    }
+
+    if (project.rollover.stage === "handoff_ready") {
+      const pending = await advanceProjectRollover(project, leaseToken, "successor_pending");
+      if (!pending?.ok) return false;
+      project = pending.project;
+    }
+
+    if (project.rollover.stage === "successor_pending") {
+      const prepared = await prepareProjectBootstrap(project, leaseToken);
+      if (!prepared?.ok) return false;
+      project = prepared.project;
+    }
+
+    if (project.rollover.stage === "bootstrap_pending" && project.rollover.bootstrapState === "prepared") {
+      if (!project.rollover.newChatOpeningAt) {
+        if (state.pageId !== project.rollover.sourcePageId) {
+          return failProjectRollover(project, leaseToken, "Rollover left the source chat before New Chat navigation intent was persisted", "supervisor.rollover.navigation_untracked");
+        }
+        const control = Platforms.findNewChatControl(adapter(), document);
+        if (!control) return false;
+        const marked = await markNewChatOpening(project, leaseToken);
+        if (!marked?.ok) return false;
+        project = marked.project;
+        try {
+          control.click();
+          await record("Opened ChatGPT New Chat for project rollover", "info", "supervisor.rollover.new_chat_opened");
+          return true;
+        } catch (error) {
+          return failProjectRollover(project, leaseToken, `New Chat navigation became uncertain: ${Shared.errorMessage(error)}`, "supervisor.rollover.new_chat_unknown");
+        }
+      }
+      if (state.pageId === project.rollover.sourcePageId) {
+        if (now() - project.rollover.newChatOpeningAt > NEW_CHAT_CONFIRM_TIMEOUT_MS) {
+          return failProjectRollover(project, leaseToken, "New Chat navigation was not observed after the persisted click intent", "supervisor.rollover.new_chat_not_observed");
+        }
+        return false;
+      }
+      if (now() - project.rollover.newChatOpeningAt > BOOTSTRAP_CONFIRM_TIMEOUT_MS) {
+        return failProjectRollover(project, leaseToken, "Fresh New Chat surface was not ready within the bootstrap navigation window", "supervisor.rollover.new_chat_stale");
+      }
+      return submitBootstrap(project, leaseToken);
+    }
+
+    if (project.rollover.stage === "bootstrap_pending" && project.rollover.bootstrapState === "submitting") {
+      if (currentIsDurableSuccessor(project)) {
+        const observedText = Platforms.latestUserText(adapter());
+        if (observedText) {
+          const observed = await observeBootstrap(project, leaseToken, state.pageId, observedText);
+          if (observed?.ok) project = observed.project;
+          else if (observed?.code === "project.bootstrap_receipt_mismatch") {
+            return persistBootstrapUnknown(project, leaseToken, "A different user message appeared while the rollover bootstrap was awaiting delivery confirmation");
+          }
+        }
+      }
+      if (project.rollover.bootstrapState === "submitting") {
+        if (now() - project.rollover.bootstrapSubmittedAt > BOOTSTRAP_CONFIRM_TIMEOUT_MS) {
+          return persistBootstrapUnknown(project, leaseToken, "Rollover bootstrap delivery could not be confirmed on a durable successor route");
+        }
+        return false;
+      }
+    }
+
+    if (project.rollover.stage === "bootstrap_pending" && project.rollover.bootstrapState === "observed") {
+      if (state.pageId !== project.rollover.successorPageId) return false;
+      const api = engine();
+      if (!api || !await api.ensureReady()) return false;
+      const apiState = api.getState();
+      if (!apiState.hydrated || apiState.generating) return false;
+      const responseText = Platforms.latestAssistantText(adapter());
+      if (!responseText) return false;
+      const quietSince = Math.max(project.rollover.bootstrapObservedAt || 0, apiState.lastDomActivityAt || 0, apiState.lastGenerationAt || 0);
+      if (now() - quietSince < RESPONSE_SETTLE_MS) return false;
+      const verified = await verifyBootstrap(project, leaseToken, responseText);
+      if (!verified?.ok) {
+        return failProjectRollover(project, leaseToken, verified?.reason || "Successor bootstrap response did not verify", "supervisor.rollover.bootstrap_verification_failed");
+      }
+      project = verified.project;
+    }
+
+    if (["successor_bound", "resuming"].includes(project.rollover.stage)) {
+      return resumeSuccessorGoal(project, leaseToken);
+    }
+    return false;
   }
 
   async function handleWorkflow() {
