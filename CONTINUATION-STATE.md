@@ -11,13 +11,17 @@ Checkpoints: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints`
 4. Before stopping: validate, update repo state, commit/push, checkpoint.
 
 ## Current state
-Checkpoint 019 / Phase B is validated and ready to commit: durable project CAS/lease, restart-safe rollover stages, semantic handoff generation/verification, safe hard-limit fallback, and runtime recovery integration.
-Validation: 312/312 full non-environmental tests; 46/46 focused; 39 packaged runtime files; syntax/boundary/package/no-bare/diff checks pass.
-Overall estimate: ~86%.
+Checkpoint 020 / Phase C implementation commit: `0af992d58eb3a515aac08e09f791471f62f2a1bf`.
+Phase C is deterministically complete: explicit ChatGPT New Chat control, tab-bound rollover ownership, pre-click/pre-submit persistence, real durable successor route observation, exact bootstrap receipt, token-bound verification, lineage binding, durable Goal resumption, multi-generation transaction reset, and rollover observability.
+Validation: 332/332 non-environmental tests; 39 packaged runtime files; syntax/boundary/package/no-bare/diff checks clean.
+Overall estimate: ~91%.
 
-## Next
-Phase C: real ChatGPT New Chat UI -> durable project bootstrap transaction -> observe real `/c/<id>` -> verify bootstrap -> bind successor lineage -> resume ordinary durable workflow queue. Never fabricate URLs or resend ambiguous bootstrap delivery.
+## Checkpoint 020 artifacts
+Source: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-checkpoint-020-successor-rollover-0af992d.zip`
+SHA-256: `C4829DA1ED4F11FE1D7A1BCB9013A5DF6264EFD5A27C03DB6376630F1E7F3561`
+Browser candidate: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-browser-candidate-0af992d.zip`
+SHA-256: `CA8B34C7028FDF71A6FDF5BCB0136D32BB75CA8686953A143B5DEDE2B739FEFB`
+Archive verification: 39/39 files, missing 0, extra 0, hash mismatch 0.
 
-Checkpoint 019 implementation commit: `36d49faf369719878f20d1e0762bcf3b781d2b4c`.
-Source ZIP SHA-256: `7956DFC6BFA9E0C8DBFCC4C7CE565C942C9367478C8D6D0C60E1E040C522C075`.
-Browser candidate SHA-256: `29CE70BA2E23B8AD969AEE308472DE7210B7DD7EB906B935711E01A8D6B4A843`; verified 39/39 files byte-for-byte against `dist/yolo`.
+## Exact next work
+Phase D: proactive rollover before hard exhaustion, using only observable evidence. Do not invent context percentages. Prefer a planned semantic handoff while the source chat is still usable, verify it, then use the same Phase C successor transaction. Add bounded thresholds, suppression/cooldown, restart evidence, and tests proving provider/rate/human stops never trigger proactive rollover.

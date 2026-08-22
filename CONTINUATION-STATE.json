@@ -1,14 +1,14 @@
 {
   "branch": "continuation-supervisor-development",
-  "checkpoint": 19,
-  "implementationCommit": "36d49faf369719878f20d1e0762bcf3b781d2b4c",
-  "phaseCompleted": "B",
-  "phaseNext": "C",
-  "progressPercent": 86,
-  "validation": {"focused":"46/46","nonEnvironmental":"312/312","runtimeFiles":39},
-  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-019-rollover-transaction-36d49fa.zip",
-  "sourceSha256": "7956DFC6BFA9E0C8DBFCC4C7CE565C942C9367478C8D6D0C60E1E040C522C075",
-  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-36d49fa.zip",
-  "browserCandidateSha256": "29CE70BA2E23B8AD969AEE308472DE7210B7DD7EB906B935711E01A8D6B4A843",
-  "next": "Phase C: real New Chat UI, durable bootstrap transaction, observe real successor route, verify, bind lineage, resume queue"
+  "checkpoint": 20,
+  "implementationCommit": "0af992d58eb3a515aac08e09f791471f62f2a1bf",
+  "phaseCompleted": "C",
+  "phaseNext": "D",
+  "progressPercent": 91,
+  "validation": {"nonEnvironmental":"332/332","runtimeFiles":39,"archiveParity":"39/39"},
+  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-020-successor-rollover-0af992d.zip",
+  "sourceSha256": "C4829DA1ED4F11FE1D7A1BCB9013A5DF6264EFD5A27C03DB6376630F1E7F3561",
+  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-0af992d.zip",
+  "browserCandidateSha256": "CA8B34C7028FDF71A6FDF5BCB0136D32BB75CA8686953A143B5DEDE2B739FEFB",
+  "next": "Phase D: proactive rollover from observable evidence, verified semantic handoff, then reuse Phase C successor transaction"
 }
