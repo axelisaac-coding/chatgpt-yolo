@@ -148,3 +148,15 @@ Add deterministic endurance/state-transition simulation before real browser endu
 
 ## Progress estimate
 ~78% overall after checkpoint 010. Core Supervisor orchestration and observability are implemented with broad regression coverage. Deterministic endurance simulation, browser-test packaging/documentation, real ChatGPT endurance/failure-mode validation, and any hardening discovered there remain.
+## Implementation checkpoint 011
+Added deterministic Supervisor endurance/state-transition coverage in `tests/supervisor-endurance.test.js`. The suite drives a persistent Goal through 1,000 unique productive continuations with JSON serialize/normalize restart simulation every 25 cycles, proving no latent legacy 50-turn ceiling and bounded workflow-state size.
+
+The same suite exercises missing-marker recovery across restarts through the recovery safety limit, changed prose with repeated durable progress evidence through the no-progress stall threshold, completion verification and verified completion across restart, bounded verification-protocol failure across restart, durable provider/human/stalled/blocked/paused stop-state serialization, and exact 50-iteration Loop cap behavior.
+
+Focused endurance validation passes 7/7. Broad non-environmental validation now passes 276/276. `npm run check`, `npm run verify:extension` (38 packaged files), package check, no-bare-installs, and `git diff --check` pass. Baseline-only Windows CRLF and unavailable-ffprobe exclusions remain unchanged.
+
+## Current exact next step
+Build a concrete unpacked/browser-test candidate from the validated branch and update user-facing documentation for Continuation Supervisor behavior: how to start a persistent Goal, progress markers, recovery/verification semantics, stalled/rate-limited/human-required states, pause/resume/stop, provider-limit non-bypass policy, known baseline validation exclusions, and the real-browser endurance test procedure. Then install/load the unpacked candidate in Chromium on Lap if browser automation/access permits and begin live saved-conversation testing.
+
+## Progress estimate
+~83% overall after checkpoint 011. Core state-machine behavior, observability, and deterministic long-run/restart simulation are implemented and broadly regression-tested. Browser-test packaging/documentation, real ChatGPT endurance/failure-mode validation, and hardening from observed browser behavior remain.
