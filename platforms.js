@@ -339,11 +339,18 @@
       .trim();
   }
 
-  function userMessageSnapshot(adapter, documentLike = document) {
-    if (!adapter) return { count: 0, latestText: "" };
+  function userMessageSnapshot(adapter, documentLike = document, expectedText = "") {
+    const expected = comparableText(expectedText);
+    if (!adapter) return { count: 0, latestText: "", expectedText: expected, expectedCount: 0 };
     const candidates = uniqueElements(adapter.userSelectors
       .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
-    return { count: candidates.length, latestText: comparableText(normalizedMultilineText(candidates.at(-1))) };
+    const texts = candidates.map((element) => comparableText(normalizedMultilineText(element)));
+    return {
+      count: candidates.length,
+      latestText: texts.at(-1) || "",
+      expectedText: expected,
+      expectedCount: expected ? texts.filter((text) => text === expected).length : 0
+    };
   }
 
   function submissionObserved(adapter, options = {}, documentLike = document) {
@@ -353,7 +360,10 @@
     const previous = options.previousSnapshot && typeof options.previousSnapshot === "object"
       ? options.previousSnapshot
       : { count: 0, latestText: comparableText(options.previousUserText) };
-    const current = userMessageSnapshot(adapter, documentLike);
+    const current = userMessageSnapshot(adapter, documentLike, expectedText);
+    const expectedCountKnown = comparableText(previous.expectedText) === expectedText
+      && Number.isFinite(Number(previous.expectedCount));
+    if (expectedCountKnown && current.expectedCount > Math.max(0, Number(previous.expectedCount) || 0)) return true;
     const advanced = current.count > Math.max(0, Number(previous.count) || 0)
       || current.latestText !== comparableText(previous.latestText);
     return advanced && current.latestText === expectedText;

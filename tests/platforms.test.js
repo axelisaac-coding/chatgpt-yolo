@@ -115,6 +115,27 @@ test("submission observation requires a new matching user message", () => {
   assert.equal(Platforms.submissionObserved(adapter, { expectedText: "same prompt", previousSnapshot }, documentLike), false);
 });
 
+test("submission receipt survives a later user message after the exact queued prompt", () => {
+  const messages = [{ textContent: "baseline" }];
+  const adapter = { userSelectors: ["user"] };
+  const documentLike = { querySelectorAll(selector) { return selector === "user" ? messages : []; } };
+  const previousSnapshot = Platforms.userMessageSnapshot(adapter, documentLike, "queued prompt");
+
+  messages.push({ textContent: "queued prompt" });
+  messages.push({ textContent: "later human instruction" });
+  assert.equal(Platforms.submissionObserved(adapter, { expectedText: "queued prompt", previousSnapshot }, documentLike), true);
+});
+
+test("submission receipt does not reuse an older identical prompt", () => {
+  const messages = [{ textContent: "queued prompt" }];
+  const adapter = { userSelectors: ["user"] };
+  const documentLike = { querySelectorAll(selector) { return selector === "user" ? messages : []; } };
+  const previousSnapshot = Platforms.userMessageSnapshot(adapter, documentLike, "queued prompt");
+
+  messages.push({ textContent: "later human instruction" });
+  assert.equal(Platforms.submissionObserved(adapter, { expectedText: "queued prompt", previousSnapshot }, documentLike), false);
+});
+
 test("composer clearing or generation alone is not a delivery receipt", () => {
   const adapter = { userSelectors: ["user"] };
   const documentLike = { querySelectorAll() { return []; } };

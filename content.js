@@ -340,7 +340,7 @@
         return { ok: false, code: "composer.busy", reason: "Message composer contains a draft", deliveryAmbiguous: false };
       }
 
-      const previousSnapshot = Platforms.userMessageSnapshot(state.platform);
+      const previousSnapshot = Platforms.userMessageSnapshot(state.platform, document, prompt);
       const expectedFingerprint = Commands.fingerprint(prompt);
       Platforms.setComposerValue(composer, prompt);
       await sleep(120);

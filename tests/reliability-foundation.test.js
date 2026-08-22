@@ -66,7 +66,7 @@ test('all automated text submissions use the durable queue', () => {
   const sendPrompt = content.slice(content.indexOf('async function sendPrompt'), content.indexOf('async function sendContinue'));
   assert.match(sendPrompt, /type: "YOLO_QUEUE_ADD"/);
   assert.doesNotMatch(sendPrompt, /writeAndSubmit/);
-  assert.match(content, /previousSnapshot = Platforms\.userMessageSnapshot/);
+  assert.match(content, /previousSnapshot = Platforms\.userMessageSnapshot\(state\.platform, document, prompt\)/);
   assert.match(content, /YOLO_QUEUE_MARK_SUBMITTING/);
 });
 
