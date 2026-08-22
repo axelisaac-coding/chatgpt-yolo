@@ -238,6 +238,23 @@ test("background persists sender-bound command workflow state", async () => {
   assert.equal(afterClear.workflow.revision, 0);
 });
 
+test("expired workflow runner lease allows safe takeover after tab loss", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/expired-runner";
+  const started = await invoke({
+    type: "YOLO_WORKFLOW_SET",
+    pageId,
+    expectedRevision: 0,
+    workflow: { kind: "goal", objective: "recover after tab loss", status: "running", runnerId: "old-tab", runnerExpiresAt: 1 }
+  });
+  assert.equal(started.ok, true);
+  assert.equal(started.workflow.runnerId, "old-tab");
+  const takeover = await invoke({ type: "YOLO_WORKFLOW_CLAIM", pageId, ownerId: "new-tab" });
+  assert.equal(takeover.ok, true);
+  assert.equal(takeover.renewed, true);
+  assert.equal(takeover.workflow.runnerId, "new-tab");
+  assert.ok(takeover.workflow.runnerExpiresAt > Date.now());
+});
 test("background bounds active command workflows", async () => {
   const { invoke } = loadBackground();
   for (let index = 0; index < 25; index += 1) {

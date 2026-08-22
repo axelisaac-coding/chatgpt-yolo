@@ -383,12 +383,14 @@
       const prompt = Commands.workflowPrompt(state.workflow, "verification");
       const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
       if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not queue the completion verification prompt", "supervisor.verify.queue_failed");
+      else await record(decision.reason, "info", decision.code);
       return true;
     }
     if (decision.action === "recover") {
       const prompt = Commands.workflowPrompt(state.workflow, "recovery");
       const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
       if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not queue the workflow recovery prompt", "supervisor.recover.queue_failed");
+      else await record(decision.reason, "info", decision.code);
       return true;
     }
     if (decision.action !== "continue") {

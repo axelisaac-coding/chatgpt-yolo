@@ -213,3 +213,17 @@ Push/checkpoint this test-only increment, rebuild/package-compare runtime once m
 
 ## Progress estimate
 ~96% overall after checkpoint 015. Deterministic implementation/reliability evidence is strong and current-public-browser injection has passed. Formal release remains blocked primarily by authenticated saved-conversation and elapsed long-duration ChatGPT validation.
+## Implementation checkpoint 016
+Hardened unattended recovery and activity evidence in two ways. First, background regression coverage now proves that when a running workflow's tab/runner lease has actually expired, a different tab can safely claim the same workflow, receive a fresh two-minute lease, and continue without the old tab blocking progress. This strengthens the deterministic browser-refresh/tab-loss recovery path while retaining the existing protection that prevents competing live tabs from running the same workflow concurrently.
+
+Second, the runtime now writes explicit durable activity events when a recovery prompt or completion-verification prompt has been successfully committed to the durable queue. The event uses the Supervisor decision reason/code and is recorded only after queue commit succeeds; queue failure still transitions to the existing blocked failure path. This closes an observability gap where the queue-send history previously showed only a generic Goal prompt rather than why the Supervisor entered recovery or verification.
+
+Focused validation: background/overnight takeover tests pass 27/27; command-runtime/error/UI transition-history tests pass 44/44. Full non-environmental validation passes 283/283. `npm run check`, extension-boundary verification (38 packaged files), package verification, `node scripts/no-bare-installs.mjs`, and `git diff --check` all pass.
+
+Checkpoint 016 changes runtime code (`command-runtime.js`), so the older `fdf2114` browser candidate is now superseded. Build a new candidate only after this checkpoint is committed, archive the exact 38-file `dist/yolo` output, verify archive contents byte-for-byte, and run the isolated current-public-ChatGPT browser smoke again before treating the new candidate as the active test artifact.
+
+## Current exact next step
+Commit/push checkpoint 016, create source ZIP/hash, build a new candidate ZIP/hash from that exact commit, verify archive byte equality to `dist/yolo`, upload both to a new draft/prerelease TEST ONLY release, and rerun isolated Edge current-public-site injection/service-worker smoke. Formal promotion remains blocked on authenticated saved-conversation and real elapsed endurance testing.
+
+## Progress estimate
+~97% overall after checkpoint 016. The remaining gap is increasingly concentrated in authenticated live ChatGPT evidence rather than deterministic implementation or packaging reliability.

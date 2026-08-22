@@ -18,7 +18,7 @@ Legend:
 | 3 | Tool/execution window ends without clean marker | AUTOMATED PASS; AUTH LIVE REQUIRED | Missing-marker Goal recovery is deterministic; a real long tool-window cutoff still needs authenticated live evidence. |
 | 4 | Missing marker | AUTOMATED PASS | Goal recovers; bounded Loop pauses. Recovery attempts are bounded. |
 | 5 | Malformed/multiple marker | AUTOMATED PASS | Both workflow kinds fail closed on malformed marker protocol. |
-| 6 | Browser refresh | AUTOMATED PASS; AUTH LIVE REQUIRED | Durable state normalization/ownership is tested; real refresh in a saved conversation remains a live smoke requirement. |
+| 6 | Browser refresh / tab loss | AUTOMATED PASS; AUTH LIVE REQUIRED | Durable state normalization, service-worker reload, and expired runner-lease takeover by a new tab are tested; real refresh in a saved conversation remains a live smoke requirement. |
 | 7 | Extension/service-worker restart | AUTOMATED PASS | Fresh background VM reloads the same persisted queue/workflow identity and Supervisor state. |
 | 8 | Temporary network loss / ambiguous delivery | AUTOMATED PASS; AUTH LIVE REQUIRED | Ambiguous delivery becomes `queue.delivery_unknown` and pauses; real network loss still needs browser confirmation. |
 | 9 | ChatGPT transient error surface | AUTOMATED PASS; AUTH LIVE REQUIRED | Existing error-recovery path remains distinct from provider-limit classification. |

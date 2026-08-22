@@ -47,3 +47,13 @@ test("provider and human stop surfaces preempt generation and response recovery"
   assert.ok(stop >= 0 && generation > stop && settle > generation && process > settle);
   assert.match(handler, /await markWorkflow\(stopState\.status, stopState\.reason, stopState\.code\)/);
 });
+
+test("recovery and verification transitions are durably recorded after queue commit", () => {
+  const response = source.slice(source.indexOf("async function processResponse"), source.indexOf("async function handlePendingWorkflowItem"));
+  const records = response.match(/else await record\(decision\.reason, "info", decision\.code\)/g) || [];
+  assert.equal(records.length, 2);
+  assert.ok(response.indexOf('decision.action === "verify"') < response.indexOf('else await record(decision.reason, "info", decision.code)'));
+  assert.ok(response.indexOf('decision.action === "recover"') < response.lastIndexOf('else await record(decision.reason, "info", decision.code)'));
+  assert.match(response, /supervisor\.verify\.queue_failed/);
+  assert.match(response, /supervisor\.recover\.queue_failed/);
+});
