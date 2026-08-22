@@ -8,8 +8,9 @@ const root = path.join(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "tab-supervisor.js"), "utf8");
 const sharedSource = fs.readFileSync(path.join(root, "shared.js"), "utf8");
 
-function makeHarness({ fail = "query" } = {}) {
+function makeHarness({ fail = "query", unhealthy = false } = {}) {
   const errors = [];
+  const injections = [];
   let alarmCallback = null;
   const listeners = {
     alarm: null,
@@ -38,7 +39,7 @@ function makeHarness({ fail = "query" } = {}) {
     tabs: {
       query(queryInfo, callback) {
         if (fail === "query") throw new Error("tabs.query rejected");
-        callback?.([]);
+        callback?.(unhealthy ? [{ id: 1, url: "https://chatgpt.com/c/test", status: "complete", autoDiscardable: true }] : []);
       },
       get(tabId, callback) {
         if (fail === "get") throw new Error(`tabs.get(${tabId}) rejected`);
@@ -48,14 +49,15 @@ function makeHarness({ fail = "query" } = {}) {
         callback?.({ id: tabId });
       },
       sendMessage(tabId, message, callback) {
-        callback?.({ ok: true });
+        callback?.(unhealthy ? null : { ok: true });
       },
       onUpdated: { addListener(handler) { listeners.updated = handler; } },
       onActivated: { addListener(handler) { listeners.activated = handler; } },
       onRemoved: { addListener(handler) { listeners.removed = handler; } }
     },
     scripting: {
-      executeScript(target, options, callback) {
+      executeScript(injection, callback) {
+        injections.push([...(injection?.files || [])]);
         callback?.();
       }
     }
@@ -93,12 +95,19 @@ function makeHarness({ fail = "query" } = {}) {
   context.globalThis = context;
   vm.runInNewContext(source, context, { filename: "tab-supervisor.js" });
 
-  return { listeners, errors };
+  return { listeners, errors, injections };
 }
 
 async function flushMicrotasks() {
   await new Promise((resolve) => setImmediate(resolve));
 }
+
+test("fresh unhealthy tab injects the complete dependency-ordered content stack", async () => {
+  const { listeners, injections } = makeHarness({ fail: "none", unhealthy: true });
+  listeners.installed?.();
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  assert.deepEqual(injections[0], ["config.js", "lifecycle.js", "platforms.js", "shared.js", "commands.js", "command-ui.js", "content-state.js", "content.js", "command-runtime.js"]);
+});
 
 test("listener catches and logs alarm sweep rejection", async () => {
   const { listeners, errors } = makeHarness({ fail: "query" });

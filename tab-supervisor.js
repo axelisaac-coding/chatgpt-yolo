@@ -13,6 +13,7 @@
     "config.js",
     "lifecycle.js",
     "platforms.js",
+    "shared.js",
     "commands.js",
     "command-ui.js",
     "content-state.js",

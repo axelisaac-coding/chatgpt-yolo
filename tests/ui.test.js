@@ -167,6 +167,7 @@ test("fallback injection restores the full command content-script stack", () => 
   const expected = '["config.js", "lifecycle.js", "platforms.js", "shared.js", "commands.js", "command-ui.js", "content-state.js", "content.js", "command-runtime.js"]';
   assert.match(read("popup.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(read("options.js"), new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(read("tab-supervisor.js"), /"config\.js",\s*"lifecycle\.js",\s*"platforms\.js",\s*"shared\.js",\s*"commands\.js",\s*"command-ui\.js",\s*"content-state\.js",\s*"content\.js",\s*"command-runtime\.js"/);
 });
 
 test("palette filter text is not leaked into optional command arguments", () => {
