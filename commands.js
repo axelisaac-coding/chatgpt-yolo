@@ -16,6 +16,7 @@
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
   const TERMINAL_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
+  const PROGRESS_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(?:PROGRESS:([^\]\r\n]{1,160})|(NO_PROGRESS))\][ \t]*(?=\n|$)/gi;
 
   const COMMANDS = Object.freeze([
     Object.freeze({ name: "goal", title: "Goal", description: "Start a persistent marker-driven objective that can continue while meaningful work remains.", args: "objective", group: "Automated workflows", kind: "workflow" }),
@@ -308,6 +309,7 @@
       "You are now working in YOLO Goal mode.",
       `Persistent objective: ${workflow.objective}`,
       "Work toward the objective concretely. Inspect the current conversation and continue from the actual state instead of restarting or repeating prior commentary.",
+      "When continuing, immediately before the terminal control marker emit exactly one progress marker: [YOLO:PROGRESS:<short durable checkpoint or evidence id>] only if concrete new progress was actually persisted or verified; otherwise [YOLO:NO_PROGRESS]. Reuse the same progress id if the durable checkpoint did not advance.",
       "At the very end of every response, emit exactly one control marker on its own line:",
       "[YOLO:CONTINUE] when more work remains toward the objective; [YOLO:DONE] only when the objective is genuinely complete; [YOLO:BLOCKED] when specific user input or unavailable access is required.",
       "Do not emit more than one marker. Begin now."
@@ -319,6 +321,7 @@
       `Continue YOLO Goal mode for this persistent objective: ${workflow.objective}`,
       `This is continuation ${workflow.iteration + 1}. Goal mode has no arbitrary total-turn cap while meaningful progress continues.`,
       "Continue from the latest completed work. Critically inspect assumptions, close gaps, execute the next concrete steps, and validate what you change. Do not repeat the previous answer.",
+      "If ending with [YOLO:CONTINUE], immediately before it emit exactly one progress marker: [YOLO:PROGRESS:<short durable checkpoint or evidence id>] only for genuinely new persisted/verified progress, otherwise [YOLO:NO_PROGRESS].",
       "End with exactly one marker on its own line: [YOLO:CONTINUE], [YOLO:DONE], or [YOLO:BLOCKED]."
     ].join("\n\n");
   }
@@ -330,6 +333,7 @@
       `Recovery attempt ${attempt} of ${SUPERVISOR_LIMITS.recoveryAttempts}. The previous turn ended without the required terminal control marker.`,
       "Do not assume the interrupted operation completed. Inspect the actual conversation and any durable project state, files, logs, tests, or artifacts available through your tools. Identify the last verified completed operation and the first incomplete or uncertain operation.",
       "Recover from that exact point. Re-run or verify uncertain work where necessary, preserve/checkpoint meaningful results as soon as practical, and then continue toward the persistent objective without repeating prior commentary.",
+      "If ending with [YOLO:CONTINUE], immediately before it emit [YOLO:PROGRESS:<short durable checkpoint or evidence id>] only when recovery produced new persisted/verified progress, otherwise [YOLO:NO_PROGRESS].",
       "At the very end, emit exactly one marker on its own line: [YOLO:CONTINUE], [YOLO:DONE], or [YOLO:BLOCKED]."
     ].join("\n\n");
   }
@@ -383,6 +387,17 @@
     const terminal = source.match(TERMINAL_MARKER_RE);
     if (!terminal || markers.length !== 1) return "malformed";
     return terminal[1].toLowerCase();
+  }
+
+  function evaluateProgress(text) {
+    const source = String(text || "");
+    const markers = [...source.matchAll(PROGRESS_MARKER_RE)];
+    if (!markers.length) return { kind: "missing", evidence: "", fingerprint: "" };
+    if (markers.length !== 1) return { kind: "malformed", evidence: "", fingerprint: "" };
+    if (markers[0][2]) return { kind: "no_progress", evidence: "", fingerprint: "" };
+    const evidence = cleanText(markers[0][1], 160);
+    if (!evidence) return { kind: "malformed", evidence: "", fingerprint: "" };
+    return { kind: "progress", evidence, fingerprint: fingerprint(evidence) };
   }
 
   function decideWorkflowResponse(raw, responseText, { userFingerprint = "", at = Date.now() } = {}) {
@@ -495,6 +510,19 @@
         code: "command.workflow.marker_malformed"
       };
     }
+    if (workflow.kind === "goal" && outcome === "continue") {
+      const progress = evaluateProgress(text);
+      if (progress.kind === "progress") {
+        const advanced = progress.fingerprint !== workflow.supervisor.lastProgressFingerprint;
+        workflow.supervisor = observeSupervisorState(workflow.supervisor, {
+          progressed: advanced,
+          progressFingerprint: progress.fingerprint
+        }, at);
+      } else if (progress.kind === "no_progress") {
+        workflow.supervisor = observeSupervisorState(workflow.supervisor, { progressed: false }, at);
+      }
+    }
+
     if (workflow.kind === "loop" && workflow.iteration >= workflow.maxIterations) {
       return {
         workflow,
@@ -575,6 +603,7 @@
     setWorkflowStatus,
     workflowPrompt,
     evaluateResponse,
+    evaluateProgress,
     decideWorkflowResponse,
     oneShotPrompt,
     requiresArgs

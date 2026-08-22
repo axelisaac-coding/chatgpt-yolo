@@ -120,3 +120,17 @@ Wire no-progress evidence into actual persistent Goal response processing. Exact
 
 ## Progress estimate
 ~66% overall after checkpoint 008. Automatic continuation/recovery, repeat-loop protection, verified completion, provider-limit pausing, and human-required pausing are implemented with broad regression coverage. Progress-evidence wiring, dashboard/status improvements, final packaging/docs, real-browser endurance/failure-mode validation, and any hardening found by endurance tests remain.
+## Implementation checkpoint 009
+Activated the previously dormant no-progress circuit breaker with an explicit, backward-compatible progress-evidence protocol for persistent Goal responses. The Supervisor does not infer semantic progress from prose. Goal prompts now instruct ChatGPT that when it ends with `[YOLO:CONTINUE]`, it should immediately precede that terminal marker with exactly one progress marker: `[YOLO:PROGRESS:<short durable checkpoint or evidence id>]` only when concrete new progress was actually persisted or verified, otherwise `[YOLO:NO_PROGRESS]`.
+
+`evaluateProgress()` parses this signal independently from terminal control markers. Missing progress evidence is neutral for backward compatibility. Explicit NO_PROGRESS increments the persisted noProgressCount. A PROGRESS evidence id is fingerprinted; a genuinely new checkpoint resets the no-progress sequence and updates lastProgressAt/lastProgressFingerprint, while reusing the same evidence id counts as no new progress even if the assistant changes its surrounding wording. After the existing threshold of three no-progress observations, persistent Goal mode enters `stalled` with `supervisor.stalled.no_progress`.
+
+The same progress evidence protocol is included in initial Goal, continuation, and recovery prompts. Verification responses are intentionally handled by the verification phase and do not masquerade as ordinary work progress.
+
+Validation: focused commands tests pass 28/28. Broad non-environmental suite passes 267/267. `npm run check`, extension boundary verification (38 packaged files), package check, no-bare-installs, and `git diff --check` pass. Baseline CRLF/ffprobe exclusions remain unchanged.
+
+## Current exact next step
+Improve Supervisor observability/status UI before browser endurance testing. Show workflow phase (work/recovery/verification), persistent Goal continuation count without misleading `/0` display, Supervisor progress/repeat/recovery/verification counters, last progress age/checkpoint presence, and explicit stop state/reason. Keep the existing compact command chrome and avoid weakening accessibility. Then package an unpacked candidate and begin deterministic endurance/state-transition simulation before real ChatGPT browser testing.
+
+## Progress estimate
+~73% overall after checkpoint 009. Core orchestration behavior is largely implemented: persistent uncapped Goal, durable queue delivery, abnormal-ending recovery, recovery/repeat/no-progress circuit breakers, evidence-verified completion, provider-limit pause, and human-required pause. Observability/UI, packaging/release docs, endurance/browser validation, and hardening from those tests remain.

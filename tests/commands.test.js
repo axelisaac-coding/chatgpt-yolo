@@ -415,3 +415,53 @@ test("provider-limit and human-required workflow states normalize as durable res
     assert.equal(stopped.runnerId, "");
   }
 });
+
+test("progress evidence markers parse independently from terminal control markers", () => {
+  const progress = Commands.evaluateProgress("work\n[YOLO:PROGRESS:tests-256-pass]\n[YOLO:CONTINUE]");
+  assert.equal(progress.kind, "progress");
+  assert.equal(progress.evidence, "tests-256-pass");
+  assert.equal(progress.fingerprint, Commands.fingerprint("tests-256-pass"));
+  assert.equal(Commands.evaluateProgress("work\n[YOLO:NO_PROGRESS]\n[YOLO:CONTINUE]").kind, "no_progress");
+  assert.equal(Commands.evaluateProgress("work\n[YOLO:CONTINUE]").kind, "missing");
+  assert.equal(Commands.evaluateProgress("[YOLO:NO_PROGRESS]\n[YOLO:PROGRESS:x]\n[YOLO:CONTINUE]").kind, "malformed");
+});
+
+test("explicit no-progress evidence stalls a Goal after the configured threshold", () => {
+  let workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "finish", status: "running", awaitingResponse: true, promptFingerprint: "owned" });
+  for (let index = 1; index <= 3; index += 1) {
+    const decision = Commands.decideWorkflowResponse(workflow, `different wording ${index}\n[YOLO:NO_PROGRESS]\n[YOLO:CONTINUE]`, { userFingerprint: "owned", at: 8000 + index });
+    assert.equal(decision.workflow.supervisor.noProgressCount, index);
+    if (index < 3) assert.equal(decision.action, "continue");
+    else {
+      assert.equal(decision.action, "stalled");
+      assert.equal(decision.code, "supervisor.stalled.no_progress");
+    }
+    workflow = { ...decision.workflow, status: "running", awaitingResponse: true, promptFingerprint: "owned" };
+  }
+});
+
+test("reused progress evidence counts as no progress and new evidence resets the sequence", () => {
+  let workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "finish", status: "running", awaitingResponse: true, promptFingerprint: "owned" });
+  let decision = Commands.decideWorkflowResponse(workflow, "saved checkpoint\n[YOLO:PROGRESS:checkpoint-a]\n[YOLO:CONTINUE]", { userFingerprint: "owned", at: 9000 });
+  assert.equal(decision.action, "continue");
+  assert.equal(decision.workflow.supervisor.noProgressCount, 0);
+  const checkpointA = decision.workflow.supervisor.lastProgressFingerprint;
+
+  workflow = { ...decision.workflow, status: "running", awaitingResponse: true, promptFingerprint: "owned" };
+  decision = Commands.decideWorkflowResponse(workflow, "different prose same checkpoint\n[YOLO:PROGRESS:checkpoint-a]\n[YOLO:CONTINUE]", { userFingerprint: "owned", at: 9100 });
+  assert.equal(decision.workflow.supervisor.noProgressCount, 1);
+  assert.equal(decision.workflow.supervisor.lastProgressFingerprint, checkpointA);
+
+  workflow = { ...decision.workflow, status: "running", awaitingResponse: true, promptFingerprint: "owned" };
+  decision = Commands.decideWorkflowResponse(workflow, "new durable checkpoint\n[YOLO:PROGRESS:checkpoint-b]\n[YOLO:CONTINUE]", { userFingerprint: "owned", at: 9200 });
+  assert.equal(decision.action, "continue");
+  assert.equal(decision.workflow.supervisor.noProgressCount, 0);
+  assert.notEqual(decision.workflow.supervisor.lastProgressFingerprint, checkpointA);
+});
+
+test("Goal prompts teach the explicit progress evidence protocol", () => {
+  const workflow = Commands.startWorkflow("goal", "finish the project").workflow;
+  assert.match(Commands.workflowPrompt(workflow, "initial"), /YOLO:PROGRESS/);
+  assert.match(Commands.workflowPrompt(workflow, "continue"), /YOLO:NO_PROGRESS/);
+  assert.match(Commands.workflowPrompt(workflow, "recovery"), /persisted\/verified progress/);
+});
