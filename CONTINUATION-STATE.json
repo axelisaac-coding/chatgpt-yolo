@@ -1,0 +1,12 @@
+{
+  "branch": "continuation-supervisor-development",
+  "authoritativeCommit": "d23e05d",
+  "checkpoint": 18,
+  "progressPercent": 81,
+  "phase": "B",
+  "next": "durable handoff and restart-safe rollover transaction",
+  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-018-rollover-foundation-d23e05d.zip",
+  "sourceSha256": "23BA3D5F267586696332E1304F51D4FC64ABB2D26DEC493018DE401C9CD57F2C",
+  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-d23e05d.zip",
+  "browserCandidateSha256": "06D538D60DB80308D439D92169E825A27CB8DE9F395FAABA10F914EFFF8FC2A5"
+}
