@@ -24,6 +24,9 @@ Browser candidate: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Co
 Browser SHA-256: `22BBB573D56CD1ED4AC4158E5730CC510D728E210C9E08CEA339DACFEE167D48`
 Archive verification: 39/39 files, missing 0, extra 0, hash mismatch 0.
 Live load folder: `C:\Users\user\Desktop\Yolo Handover\Checkpoint022-Live-v1.2.0-57fba57` (39/39 byte-parity with packaged runtime).
+TEST ONLY tag: `continuation-supervisor-v1.2.0-live-candidate-57fba57`.
+TEST ONLY draft/prerelease: `https://github.com/axelisaac-coding/chatgpt-yolo/releases/tag/untagged-25ab4a94fafa2e797bd8`.
+Live status: waiting for the user to load the exact checkpoint-022 candidate; old YOLO 1.1.0 remains disabled.
 
 ## Exact next work
 Run Phase F authenticated qualification with only the checkpoint-022 v1.2.0 candidate enabled. Observe the real saved-source -> proactive handoff -> New Chat -> durable successor `/c/...` -> exact bootstrap receipt -> token-bound verification -> lineage advance -> successor Goal resume path, then reload/restart recovery without duplicates. Record only actually observed evidence in `docs/CONTINUATION_SUPERVISOR_LIVE_QUALIFICATION.json`; `npm run validate:live` must pass before formal `v1.2.0` release publication.

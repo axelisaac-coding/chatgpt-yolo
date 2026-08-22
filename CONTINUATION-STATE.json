@@ -19,5 +19,8 @@
   "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-v1.2.0-57fba57.zip",
   "browserCandidateSha256": "22BBB573D56CD1ED4AC4158E5730CC510D728E210C9E08CEA339DACFEE167D48",
   "liveLoadFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
-  "next": "Run authenticated live saved-source to real successor rollover on unchanged checkpoint-022 runtime; record matching live receipt; validate:live; only then publish v1.2.0"
+  "next": "Run authenticated live saved-source to real successor rollover on unchanged checkpoint-022 runtime; record matching live receipt; validate:live; only then publish v1.2.0",
+  "testOnlyTag": "continuation-supervisor-v1.2.0-live-candidate-57fba57",
+  "testOnlyDraftRelease": "https://github.com/axelisaac-coding/chatgpt-yolo/releases/tag/untagged-25ab4a94fafa2e797bd8",
+  "liveStatus": "awaiting user load of exact checkpoint-022 candidate; old 1.1.0 remains disabled"
 }
