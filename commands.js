@@ -9,13 +9,14 @@
   const MAX_OBJECTIVE_LENGTH = 4000;
   const MAX_ITERATIONS = 50;
   const DEFAULT_MAX_ITERATIONS = 12;
+  const GOAL_MAX_ITERATIONS = 0;
   const WORKFLOW_STATUSES = new Set(["idle", "running", "paused", "completed", "blocked"]);
   const WORKFLOW_KINDS = new Set(["goal", "loop"]);
   const STANDALONE_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*(?=\n|$)/gi;
   const TERMINAL_MARKER_RE = /(?:^|\n)[ \t]*\[YOLO:(CONTINUE|DONE|BLOCKED)\][ \t]*$/i;
 
   const COMMANDS = Object.freeze([
-    Object.freeze({ name: "goal", title: "Goal", description: "Start a marker-driven objective that YOLO can continue for bounded turns.", args: "objective", group: "Automated workflows", kind: "workflow" }),
+    Object.freeze({ name: "goal", title: "Goal", description: "Start a persistent marker-driven objective that can continue while meaningful work remains.", args: "objective", group: "Automated workflows", kind: "workflow" }),
     Object.freeze({ name: "loop", title: "Loop", description: "Run bounded, marker-driven iterations toward one objective.", args: "[iterations] objective", group: "Automated workflows", kind: "workflow" }),
     Object.freeze({ name: "plan", title: "Plan", description: "Queue a prompt asking ChatGPT to produce an execution plan.", args: "objective", group: "Prompt shortcuts", kind: "prompt" }),
     Object.freeze({ name: "review", title: "Review", description: "Queue an adversarial review prompt for the current work or scope.", args: "[scope]", group: "Prompt shortcuts", kind: "prompt" }),
@@ -142,8 +143,10 @@
       kind,
       objective,
       status,
-      maxIterations: clamp(Math.round(finite(raw.maxIterations, DEFAULT_MAX_ITERATIONS)), 1, MAX_ITERATIONS),
-      iteration: clamp(Math.round(finite(raw.iteration, 0)), 0, MAX_ITERATIONS),
+      maxIterations: kind === "goal"
+        ? GOAL_MAX_ITERATIONS
+        : clamp(Math.round(finite(raw.maxIterations, DEFAULT_MAX_ITERATIONS)), 1, MAX_ITERATIONS),
+      iteration: Math.max(0, Math.round(finite(raw.iteration, 0))),
       pendingItemId: cleanText(raw.pendingItemId, 180),
       awaitingResponse: Boolean(raw.awaitingResponse),
       sawGeneration: Boolean(raw.sawGeneration),
@@ -164,7 +167,7 @@
 
   function startWorkflow(kind, input, { at = Date.now(), baselineFingerprint = "" } = {}) {
     if (!WORKFLOW_KINDS.has(kind)) return { ok: false, reason: "Unsupported workflow type" };
-    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: MAX_ITERATIONS };
+    const parsed = kind === "loop" ? parseLoopArgs(input) : { objective: cleanText(input), maxIterations: GOAL_MAX_ITERATIONS };
     if (!parsed.objective) return { ok: false, reason: `/${kind} requires an objective` };
     return {
       ok: true,
@@ -215,7 +218,7 @@
   function goalContinuationPrompt(workflow) {
     return [
       `Continue YOLO Goal mode for this persistent objective: ${workflow.objective}`,
-      `This is iteration ${workflow.iteration + 1} of at most ${workflow.maxIterations}.`,
+      `This is continuation ${workflow.iteration + 1}. Goal mode has no arbitrary total-turn cap while meaningful progress continues.`,
       "Continue from the latest completed work. Critically inspect assumptions, close gaps, execute the next concrete steps, and validate what you change. Do not repeat the previous answer.",
       "End with exactly one marker on its own line: [YOLO:CONTINUE], [YOLO:DONE], or [YOLO:BLOCKED]."
     ].join("\n\n");
@@ -307,7 +310,7 @@
         code: "command.workflow.marker_malformed"
       };
     }
-    if (workflow.iteration >= workflow.maxIterations) {
+    if (workflow.kind === "loop" && workflow.iteration >= workflow.maxIterations) {
       return {
         workflow,
         action: "paused",
@@ -363,6 +366,7 @@
     MAX_OBJECTIVE_LENGTH,
     MAX_ITERATIONS,
     DEFAULT_MAX_ITERATIONS,
+    GOAL_MAX_ITERATIONS,
     command,
     filterCommands,
     parseInvocation,

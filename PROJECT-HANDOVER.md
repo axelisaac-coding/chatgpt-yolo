@@ -56,8 +56,13 @@ Progress should be measured by evidence/fingerprints/checkpoints, not total turn
 ## Required test matrix
 Normal completion; repeated productive continuation; abrupt tool-window ending; missing/malformed marker; refresh; service-worker/extension restart; network loss; ChatGPT error; confirmation/human required; repeated identical error; no-progress loop; premature completion; provider/rate limit pause; genuine completion; long endurance run representative of ~15 hours.
 
+## Implementation checkpoint 003
+Implemented the first Supervisor behavior increment in `commands.js`: Goal mode now uses `GOAL_MAX_ITERATIONS = 0` as the persisted sentinel for no arbitrary total-turn cap; Goal iteration normalization is no longer clamped to 50; the legacy 50-turn cap is enforced only for bounded Loop mode; Goal continuation prompts explicitly describe persistent continuation rather than a maximum turn count; command copy no longer calls Goal bounded. Existing stored Goal workflows normalize into the new persistent semantics.
+
+Tests were updated so the legacy cap decision test is explicitly a Loop test, and a regression test proves Goal continues from iteration 50 to 51 while a 50-iteration Loop pauses at its cap. Targeted validation: `node --test tests/commands.test.js tests/ui.test.js` = 46/46 passed; `git diff --check` passed. Baseline environment failures (CRLF portability assertion and missing ffprobe) remain unrelated and are not silently treated as project regressions.
+
 ## Current exact next step
-Modify the workflow model in small test-driven increments. First change should preserve bounded `/loop` behavior while introducing uncapped long-project `/goal` semantics in a backward-compatible schema, with explicit tests proving Goal can continue past 50 while Loop still caps. Do not yet add automatic missing-marker recovery until the state migration and cap semantics are stable.
+Add versioned Supervisor progress/recovery bookkeeping without yet auto-recovering missing markers: schema/version migration, consecutive-response/no-progress/recovery counters, last-progress timestamps/fingerprints, and deterministic pure decision tests. Preserve existing queue ownership/CAS semantics. Then wire conservative abnormal-ending recovery only after the state model is proven.
 
 ## Progress estimate
-~10% overall. Repository/environment/branch/baseline and architecture mapping are established. Coding of new behavior is the next step.
+~18% overall. Persistent uncapped Goal semantics are implemented and targeted tests pass; progress/recovery state and watchdog behavior remain.

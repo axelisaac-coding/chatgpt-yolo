@@ -35,7 +35,7 @@ test("creates normalized persistent goal and loop workflows", () => {
   assert.equal(goal.workflow.kind, "goal");
   assert.equal(goal.workflow.status, "running");
   assert.equal(goal.workflow.lastAssistantFingerprint, "old");
-  assert.equal(goal.workflow.maxIterations, Commands.MAX_ITERATIONS);
+  assert.equal(goal.workflow.maxIterations, Commands.GOAL_MAX_ITERATIONS);
   assert.equal(goal.workflow.revision, 0);
   assert.match(Commands.workflowPrompt(goal.workflow, "initial"), /\[YOLO:CONTINUE\]/);
 
@@ -100,7 +100,7 @@ test("workflow revisions and runner leases normalize safely", () => {
 
 test("workflow response decisions enforce ownership, markers, and caps", () => {
   const base = Commands.normalizeWorkflow({
-    kind: "goal",
+    kind: "loop",
     objective: "ship",
     status: "running",
     maxIterations: 2,
@@ -187,4 +187,24 @@ test("both automated workflows pause on multiple or misplaced markers", () => {
     assert.equal(decision.code, "command.workflow.marker_malformed");
     assert.match(decision.reason, /multiple or misplaced/i);
   }
+});
+
+
+test("goal workflows remain productive beyond the legacy 50-turn cap while loops stay bounded", () => {
+  const goal = Commands.startWorkflow("goal", "finish the long project", { baselineFingerprint: "base" }).workflow;
+  goal.awaitingResponse = true;
+  goal.promptFingerprint = "user";
+  goal.iteration = 50;
+  const goalDecision = Commands.decideWorkflowResponse(goal, "More useful work remains.\n[YOLO:CONTINUE]", { userFingerprint: "user" });
+  assert.equal(goalDecision.action, "continue");
+  assert.equal(goalDecision.workflow.iteration, 51);
+  assert.equal(goalDecision.workflow.maxIterations, Commands.GOAL_MAX_ITERATIONS);
+
+  const loop = Commands.startWorkflow("loop", "50 finish the bounded review", { baselineFingerprint: "base" }).workflow;
+  loop.awaitingResponse = true;
+  loop.promptFingerprint = "user";
+  loop.iteration = 49;
+  const loopDecision = Commands.decideWorkflowResponse(loop, "One more pass would help.\n[YOLO:CONTINUE]", { userFingerprint: "user" });
+  assert.equal(loopDecision.action, "paused");
+  assert.equal(loopDecision.code, "command.workflow.cap_reached");
 });
