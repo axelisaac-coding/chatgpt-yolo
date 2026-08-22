@@ -4,21 +4,21 @@
 
 ChatGPT is great at long tasks—until you have to keep nudging it. I built YOLO, a free open-source Chrome extension that adds a durable prompt queue and bounded workflows to ChatGPT. Queue the next steps and stay in control.
 
-github.com/kartikkabadi/chatgpt-yolo
+github.com/axelisaac-coding/chatgpt-yolo
 
 ## X reply thread
 
 Reply 1 — Install from the release:
 
-Install from the v1.1.0 release:
-1. Download yolo-v1.1.0.zip from github.com/kartikkabadi/chatgpt-yolo/releases/tag/v1.1.0
-2. Optional: gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+Install from the v1.2.0 release:
+1. Download yolo-v1.2.0.zip from github.com/axelisaac-coding/chatgpt-yolo/releases/tag/v1.2.0
+2. Optional: gh attestation verify yolo-v1.2.0.zip --repo axelisaac-coding/chatgpt-yolo
 3. Unzip and load `yolo` at chrome://extensions (Developer mode).
 
 Reply 2 — Or build from source:
 
 Or build from source:
-git clone https://github.com/kartikkabadi/chatgpt-yolo.git
+git clone https://github.com/axelisaac-coding/chatgpt-yolo.git
 cd chatgpt-yolo
 npm run validate:core && npm run package
 Then load `dist/yolo` unpacked at chrome://extensions.
@@ -29,7 +29,7 @@ YOLO's settings, queues, templates, and workflow state stay in `chrome.storage.l
 
 Reply 4 — Sponsor and bug reports:
 
-If YOLO saves you time, the repo has a Sponsor button—one-time $5, $10, or $20 helps fund maintenance. Bugs: open a GitHub issue with steps and your browser/OS version. github.com/kartikkabadi/chatgpt-yolo/issues
+If YOLO saves you time, the repo has a Sponsor button—one-time $5, $10, or $20 helps fund maintenance. Bugs: open a GitHub issue with steps and your browser/OS version. github.com/axelisaac-coding/chatgpt-yolo/issues
 
 ## Shorter punchier alternative
 
@@ -63,7 +63,7 @@ Local-first Chrome extension for reliable queues and bounded workflows in long C
 
 ## Release description
 
-YOLO for ChatGPT v1.1.0 — local-first Chrome extension for reliable instruction queues and bounded workflows in long ChatGPT conversations. Download `yolo-v1.1.0.zip`, unzip it, and load the `yolo` folder as an unpacked extension.
+YOLO for ChatGPT v1.2.0 — local-first Chrome extension for reliable instruction queues and bounded workflows in long ChatGPT conversations. Download `yolo-v1.2.0.zip`, unzip it, and load the `yolo` folder as an unpacked extension.
 
 ## Suggested repository pinned-profile description
 

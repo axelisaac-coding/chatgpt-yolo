@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/kartikkabadi/chatgpt-yolo/security/advisories/new
+    url: https://github.com/axelisaac-coding/chatgpt-yolo/security/advisories/new
     about: Report security issues privately.

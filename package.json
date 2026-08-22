@@ -1,24 +1,26 @@
 {
   "name": "chatgpt-yolo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "license": "MIT",
   "description": "Local-first queues, bounded workflows, and safety controls for ChatGPT in Chromium browsers.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kartikkabadi/chatgpt-yolo.git"
+    "url": "https://github.com/axelisaac-coding/chatgpt-yolo.git"
   },
-  "homepage": "https://github.com/kartikkabadi/chatgpt-yolo#readme",
-  "bugs": "https://github.com/kartikkabadi/chatgpt-yolo/issues",
+  "homepage": "https://github.com/axelisaac-coding/chatgpt-yolo#readme",
+  "bugs": "https://github.com/axelisaac-coding/chatgpt-yolo/issues",
   "scripts": {
-    "check": "node --check config.js && node --check shared.js && node --check lifecycle.js && node --check coordinator.js && node --check portable-store.js && node --check queue.js && node --check commands.js && node --check projects.js && node --check background.js && node --check background-wrapper.js && node --check tab-supervisor.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content-state.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs && node --check scripts/verify-extension.mjs && node --check scripts/validate-asset-manifest.mjs && node --check scripts/no-bare-installs.mjs",
+    "check": "node --check config.js && node --check shared.js && node --check lifecycle.js && node --check coordinator.js && node --check portable-store.js && node --check queue.js && node --check commands.js && node --check projects.js && node --check background.js && node --check background-wrapper.js && node --check tab-supervisor.js && node --check data-background.js && node --check portability.js && node --check platforms.js && node --check command-ui.js && node --check content-state.js && node --check content.js && node --check command-runtime.js && node --check popup.js && node --check options.js && node --check options-ui.js && node --check options-portability.js && node --check onboarding.js && node --check scripts/package.mjs && node --check scripts/verify-extension.mjs && node --check scripts/validate-asset-manifest.mjs && node --check scripts/check-live-qualification.mjs && node --check scripts/no-bare-installs.mjs",
     "test": "node --test",
     "verify:extension": "node scripts/verify-extension.mjs",
     "package": "node scripts/package.mjs",
     "validate:core": "npm run check && npm test && npm run verify:extension && node scripts/package.mjs --check && node scripts/no-bare-installs.mjs",
     "validate:assets": "node scripts/validate-asset-manifest.mjs",
     "validate": "npm run validate:core && npm run validate:assets",
-    "validate:all": "npm run validate"
+    "validate:all": "npm run validate",
+    "live:digest": "npm run package && node scripts/check-live-qualification.mjs --digest-only",
+    "validate:live": "npm run package && node scripts/check-live-qualification.mjs"
   },
   "engines": {
     "node": ">=20"

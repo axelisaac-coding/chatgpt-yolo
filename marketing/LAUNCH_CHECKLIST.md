@@ -7,7 +7,7 @@ This is the exact sequence for Kartik to publish the launch once the final PR is
 - [ ] Review the final PR diff.
 - [ ] Confirm `npm run validate:core` passes on the PR head.
 - [ ] Confirm `npm run validate:assets` passes on the PR head (if the marketing asset tree changed).
-- [ ] Confirm the README install path points to the verified `v1.1.0` release archive with `gh attestation verify`.
+- [ ] Confirm the README install path points to the verified `v1.2.0` release archive with `gh attestation verify`.
 - [ ] Confirm the GitHub-app section wording is acceptable.
 - [ ] Confirm sponsor copy matches the live Whop page.
 
@@ -37,9 +37,9 @@ This is the exact sequence for Kartik to publish the launch once the final PR is
 - [ ] Download the `yolo-extension` artifact from the dry-run and unzip it:
   ```bash
   gh run download <run-id> -n yolo-extension -D /tmp/yolo-dry-run
-  unzip /tmp/yolo-dry-run/yolo-v1.1.0.zip -d /tmp/yolo-dry-run/unpacked
-  sha256sum /tmp/yolo-dry-run/yolo-v1.1.0.zip
-  gh attestation verify /tmp/yolo-dry-run/yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+  unzip /tmp/yolo-dry-run/yolo-v1.2.0.zip -d /tmp/yolo-dry-run/unpacked
+  sha256sum /tmp/yolo-dry-run/yolo-v1.2.0.zip
+  gh attestation verify /tmp/yolo-dry-run/yolo-v1.2.0.zip --repo axelisaac-coding/chatgpt-yolo
   ```
 - [ ] Load `/tmp/yolo-dry-run/unpacked/yolo` as an unpacked extension and repeat the smoke test on the **release ZIP itself** before tagging.
 
@@ -47,15 +47,15 @@ This is the exact sequence for Kartik to publish the launch once the final PR is
 
 - [ ] Only after both smoke tests pass, tag the exact recorded merge commit SHA:
   ```bash
-  git tag v1.1.0 <recorded-merge-sha>
-  git push origin v1.1.0
+  git tag v1.2.0 <recorded-merge-sha>
+  git push origin v1.2.0
   ```
-- [ ] The `release.yml` workflow will build `yolo-v1.1.0.zip`, generate `SHA256SUMS`, create the GitHub release, and attest the artifact.
-- [ ] Download the final `yolo-v1.1.0.zip` from the release and verify again:
+- [ ] The `release.yml` workflow will build `yolo-v1.2.0.zip`, generate `SHA256SUMS`, create the GitHub release, and attest the artifact.
+- [ ] Download the final `yolo-v1.2.0.zip` from the release and verify again:
   ```bash
-  gh release download v1.1.0 --pattern '*.zip'
-  sha256sum yolo-v1.1.0.zip
-  gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+  gh release download v1.2.0 --pattern '*.zip'
+  sha256sum yolo-v1.2.0.zip
+  gh attestation verify yolo-v1.2.0.zip --repo axelisaac-coding/chatgpt-yolo
   ```
 
 ## Repository metadata (manual or `gh repo edit`)

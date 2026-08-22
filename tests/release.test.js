@@ -46,6 +46,8 @@ test("ordinary pull-request CI is immutable and read-only", () => {
 test("release workflow validates tag identity and emits an archive checksum", () => {
   const release = read(".github/workflows/release.yml");
   assert.match(release, /test "\$GITHUB_REF_NAME" = "v\$\{version\}"/);
+  assert.match(release, /Require authenticated live qualification for release tags/);
+  assert.match(release, /node scripts\/check-live-qualification\.mjs/);
   assert.match(release, /source_date_epoch=\$\(git log -1 --format=%ct\)/);
   assert.match(release, /LC_ALL=C sort -z/);
   assert.match(release, /zip -X -q/);
@@ -86,8 +88,8 @@ test("Continuation Supervisor documentation is truthful about persistent Goal an
   assert.match(readme, /rate_limited/);
   assert.match(readme, /human_required/);
   assert.doesNotMatch(readme, /Run a bounded persistent objective|Nothing runs unbounded/);
-  assert.match(releaseReadme, /development candidate/i);
-  assert.match(releaseReadme, /not yet a formal release/i);
+  assert.match(releaseReadme, /v1\.2\.0 release candidate/i);
+  assert.match(releaseReadme, /not a formal release until authenticated live qualification/i);
   assert.match(releaseReadme, /does not require the OpenAI API/i);
   assert.match(protocol, /approximately 15 hours/i);
   assert.match(protocol, /Do not deliberately manufacture or circumvent provider usage\/rate limits/i);
@@ -111,4 +113,14 @@ test("release evidence distinguishes automated successor migration from remainin
   assert.match(evidence, /no invented context percentage/i);
   assert.match(evidence, /A proactive -> B hard-limit -> C proactive -> D/i);
   assert.match(evidence, /AUTH LIVE REQUIRED/);
+});
+
+
+test("live qualification template stays aligned with the verifier", async () => {
+  const Gate = await import("../scripts/check-live-qualification.mjs");
+  const example = JSON.parse(read("docs/CONTINUATION_SUPERVISOR_LIVE_QUALIFICATION.example.json"));
+  const protocol = read("docs/CONTINUATION_SUPERVISOR_TESTING.md");
+  assert.deepEqual(Object.keys(example.results), [...Gate.REQUIRED_RESULTS]);
+  for (const key of Gate.REQUIRED_RESULTS) assert.match(protocol, new RegExp("`" + key + "`"));
+  assert.equal(example.status, "pending");
 });

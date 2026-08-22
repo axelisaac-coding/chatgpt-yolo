@@ -146,7 +146,7 @@ export function getCanonicalPath(rootDir, itemPath) {
   return path.resolve(rootDir, itemPath || "");
 }
 
-export function validateEntry(item, { rootDir, seen, requireDimensions = true }) {
+export function validateEntry(item, { rootDir, seen, requireDimensions = true, ffprobeFn = ffprobe }) {
   const errors = [];
 
   if (!item || typeof item !== "object") {
@@ -258,7 +258,7 @@ export function validateEntry(item, { rootDir, seen, requireDimensions = true })
         errors.push(`missing required video field: ${field}`);
       }
     }
-    const meta = ffprobe(file);
+    const meta = ffprobeFn(file);
     if (!meta) {
       errors.push("ffprobe failed");
     } else {

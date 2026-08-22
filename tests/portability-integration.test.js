@@ -7,7 +7,7 @@ const root = path.join(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(root, name), "utf8");
 
 test("background composition preserves the existing engine before adding data portability", () => {
-  assert.equal(read("background-wrapper.js").trim(), '"use strict";\n\nimportScripts("shared.js", "lifecycle.js", "background.js", "portability.js", "data-background.js", "tab-supervisor.js");');
+  assert.equal(read("background-wrapper.js").replace(/\r\n/g, "\n").trim(), '"use strict";\n\nimportScripts("shared.js", "lifecycle.js", "background.js", "portability.js", "data-background.js", "tab-supervisor.js");');
   const manifest = JSON.parse(read("manifest.json"));
   assert.equal(manifest.background.service_worker, "background-wrapper.js");
 });

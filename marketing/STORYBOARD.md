@@ -18,7 +18,7 @@ The summary below is the single source of truth for the final render.
 | 4 | 0:19–0:28 | Bounded workflow | `Bounded workflows. Visible state. Your controls.` | Workflow card shows 4-segment bound; fills to `Turn 2 of 4`; cursor clicks `Pause` → amber paused state. |
 | 5 | 0:28–0:35 | Optional GitHub setup | `Connect GitHub to ChatGPT.` then `YOLO keeps the next steps moving.` | ChatGPT shows connected GitHub app chip; YOLO queue shows `inspect → implement → validate → review → summarize`. Pinned label: `Optional GitHub app · Connected directly to ChatGPT`. |
 | 6 | 0:35–0:40 | Reliability | `Draft protected.` / `Ambiguous? It pauses.` / `Local by default.` | Rapid product-truth beats tied to real UI states. |
-| 7 | 0:40–0:45 | End card | `YOLO for ChatGPT` / `Queue the next steps. Stay in control.` / `Local-first · Open source · No telemetry` / `github.com/kartikkabadi/chatgpt-yolo` / `Sponsor development` / `Independent project. Not affiliated with OpenAI.` | Clean end card; all text holds ≥ 3 s. |
+| 7 | 0:40–0:45 | End card | `YOLO for ChatGPT` / `Queue the next steps. Stay in control.` / `Local-first · Open source · No telemetry` / `github.com/axelisaac-coding/chatgpt-yolo` / `Sponsor development` / `Independent project. Not affiliated with OpenAI.` | Clean end card; all text holds ≥ 3 s. |
 
 ## Copy rules
 

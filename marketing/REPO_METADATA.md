@@ -36,15 +36,15 @@ Upload `docs/assets/social-preview.png` (1280 × 640 PNG, < 1 MB) at **Settings 
 
 ## Exact `gh` commands
 
-If you have `repo` scope on `kartikkabadi/chatgpt-yolo`:
+If you have `repo` scope on `axelisaac-coding/chatgpt-yolo`:
 
 ```bash
 # Description
-gh repo edit kartikkabadi/chatgpt-yolo \
+gh repo edit axelisaac-coding/chatgpt-yolo \
   --description "Local-first Chrome extension for reliable queues and bounded workflows in long ChatGPT conversations. Open source, no telemetry."
 
 # Topics
-gh repo edit kartikkabadi/chatgpt-yolo \
+gh repo edit axelisaac-coding/chatgpt-yolo \
   --add-topic chatgpt \
   --add-topic chatgpt-extension \
   --add-topic chrome-extension \
@@ -60,7 +60,7 @@ gh repo edit kartikkabadi/chatgpt-yolo \
   --add-topic developer-tools
 
 # Website (must remain blank)
-gh repo edit kartikkabadi/chatgpt-yolo --homepage ""
+gh repo edit axelisaac-coding/chatgpt-yolo --homepage ""
 ```
 
 ## Sponsor button
@@ -69,10 +69,10 @@ Confirm that `.github/FUNDING.yml` is present and that **Settings → Sponsorshi
 
 ## Release artifact
 
-After pushing tag `v1.1.0`, the `release.yml` workflow builds `yolo-v1.1.0.zip`, generates a SHA-256 checksum, and produces a GitHub artifact attestation. Verify before announcing:
+After pushing tag `v1.2.0`, the `release.yml` workflow builds `yolo-v1.2.0.zip`, generates a SHA-256 checksum, and produces a GitHub artifact attestation. Verify before announcing:
 
 ```bash
-gh attestation verify yolo-v1.1.0.zip --repo kartikkabadi/chatgpt-yolo
+gh attestation verify yolo-v1.2.0.zip --repo axelisaac-coding/chatgpt-yolo
 ```
 
 ## Recommended repository settings to verify

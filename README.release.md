@@ -1,12 +1,14 @@
-# YOLO for ChatGPT — Continuation Supervisor development candidate
+# YOLO for ChatGPT - Continuation Supervisor v1.2.0 release candidate
 
-This development fork extends the MIT-licensed YOLO for ChatGPT Chromium extension with persistent, progress-aware Goal supervision for long ChatGPT projects. It uses the normal ChatGPT browser composer and does not require the OpenAI API, a second hosted AI, or a local model.
+This fork extends the MIT-licensed YOLO for ChatGPT Chromium extension with persistent, progress-aware supervision for long ChatGPT projects, including safe migration into successor conversations. It uses the ordinary ChatGPT browser UI and does not require the OpenAI API, a second hosted AI, or a local model.
 
 ## Candidate status
 
-This is a browser-test candidate from `axelisaac-coding/chatgpt-yolo`, branch `continuation-supervisor-development`. It is not yet a formal release. Upstream YOLO `v1.1.0` remains the clean baseline and does not contain the Continuation Supervisor changes.
+This is the `v1.2.0` release candidate from `axelisaac-coding/chatgpt-yolo`, branch `continuation-supervisor-development`. It is **not a formal release until authenticated live qualification passes for this exact packaged runtime digest**.
 
-Do not represent this candidate as bypassing ChatGPT subscription, model, rate, usage, access, or safety limits. Provider-limit surfaces pause the workflow.
+Upstream YOLO `v1.1.0` remains the clean baseline. Attribution and license notices are preserved in `LICENSE` and `NOTICE.md`.
+
+YOLO does not bypass ChatGPT subscription, model, rate, usage, access, context, or safety limits. Provider-limit and human-required surfaces pause automation.
 
 ## Build and load
 
@@ -16,31 +18,38 @@ cd chatgpt-yolo
 git switch continuation-supervisor-development
 npm run check
 npm run package
+npm run live:digest
 ```
 
-Load `dist/yolo` from `chrome://extensions` with Developer mode enabled, then open or refresh a saved ChatGPT conversation with a stable `/c/<conversation-id>` URL.
+Load only `dist/yolo` from `chrome://extensions` with Developer mode enabled. Disable other unpacked YOLO copies first, then open or refresh a saved ChatGPT conversation with a durable `/c/<conversation-id>` URL.
 
 ## Supervisor behavior
 
-- `/goal <objective>` runs a persistent objective with no arbitrary total-turn ceiling while meaningful progress continues.
-- `/loop [count] <objective>` remains explicitly bounded and hard-capped at 50 iterations.
-- Goal continuation responses use `[YOLO:PROGRESS:<checkpoint>]` or `[YOLO:NO_PROGRESS]` so stagnation is measured from explicit evidence rather than guessed from prose.- Repeated identical responses, repeated no-progress evidence, and repeated recovery failures trip bounded circuit breakers and enter a resumable `stalled` state.
-- A stable Goal response that ends without its terminal marker enters bounded recovery after a conservative quiet window; recovery tells ChatGPT to inspect durable state and not assume an interrupted operation succeeded.
-- The first Goal `[YOLO:DONE]` starts completion verification. Only an evidence-based verification `[YOLO:DONE]` completes the Goal.
-- Explicit provider usage/rate limits become `rate_limited`; approvals, sign-in, permissions, and confirmation surfaces outside configured automation policy become `human_required`.
-- `/status` exposes phase, continuation/iteration count, progress presence, circuit-breaker counters, reason, queue, runner, generation, profile, session actions, and last action.
+- `/goal <objective>` runs a persistent objective while meaningful progress continues; `/loop [count]` remains explicitly bounded.
+- Productive Goal turns record explicit progress evidence and use bounded recovery, stagnation detection, and completion verification.
+- Hard conversation/context exhaustion is classified separately from provider/rate limits. The exhausted source becomes permanently `doNotContinue` and receives no further automatic prompt.
+- Proactive rollover uses observable message/text growth and durable continuation count only; it never invents a context percentage.
+- A proactive source generates and independently verifies a semantic handoff while still usable. Hard exhaustion can safely take over an unfinished proactive attempt.
+- Successor creation uses ChatGPT's real **New Chat** control. YOLO never fabricates a `/c/...` route.
+- Bootstrap intent is persisted before composer mutation. Successor binding requires the exact bootstrap user-message receipt on a different durable route plus a token-bound assistant verification marker.
+- The old source is retired before normal Goal work resumes in the successor. Ambiguous delivery fails closed and is never automatically resent.
+- Project identity and ordered conversation lineage survive service-worker restart and repeated A->B->C->D migration.
 
 ## Safety and reliability
 
-YOLO keeps the upstream durable queue, exact user-message delivery receipts, sender leases, cross-tab side-effect guards, optimistic workflow revisions, draft protection, route identity checks, fail-closed ambiguous delivery, and bounded retained storage/history.
+YOLO keeps durable queue ownership, exact user-message delivery receipts, sender leases, cross-tab side-effect guards, optimistic revisions, draft protection, route identity checks, bounded retained state, and fail-closed ambiguous delivery. Approvals remain off by default, and queued automation never replaces existing composer text.
 
-Approvals remain off by default. A queued workflow never replaces text already present in the ChatGPT composer.
+This extension automates a third-party web interface whose DOM can change without notice. Automated tests prove deterministic state-machine behavior but cannot substitute for current-site authenticated qualification.
 
-This extension automates a third-party web interface whose DOM can change without notice. Automated tests cannot prove current live ChatGPT selector compatibility, so this candidate requires a manual unpacked-extension smoke pass and long-duration browser testing before release.
+## Release qualification
+
+Prepare the final runtime with `npm run package`, then run `npm run live:digest`. Perform the authenticated cross-conversation test in `docs/CONTINUATION_SUPERVISOR_TESTING.md` and record the result in `docs/CONTINUATION_SUPERVISOR_LIVE_QUALIFICATION.json` using the supplied example as the schema guide.
+
+`npm run validate:live` must pass against the exact packaged digest. Tagged GitHub releases enforce this gate automatically; normal development validation does not require a live receipt.
 
 ## Privacy
 
-Settings, queues, templates, and workflow state are stored in `chrome.storage.local`. The extension has no hosted backend, telemetry, or remote code. Queued prompts are sent through the ordinary ChatGPT composer.
+Settings, queues, templates, project lineage, and workflow state remain in `chrome.storage.local`. The extension has no hosted backend, telemetry, or remote code. Queued prompts are sent through the ordinary ChatGPT composer.
 
 ## License and attribution
 

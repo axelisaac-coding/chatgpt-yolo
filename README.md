@@ -6,8 +6,8 @@ A local-first Chromium extension that adds persistent instruction queues, compos
 
 > **Independent project:** YOLO is not affiliated with or endorsed by OpenAI. It does not use the OpenAI API, run a backend, inject remote code, or collect telemetry.
 
-[![CI](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/ci.yml/badge.svg)](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/codeql.yml/badge.svg)](https://github.com/kartikkabadi/chatgpt-yolo/actions/workflows/codeql.yml)
+[![CI](https://github.com/axelisaac-coding/chatgpt-yolo/actions/workflows/ci.yml/badge.svg)](https://github.com/axelisaac-coding/chatgpt-yolo/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/axelisaac-coding/chatgpt-yolo/actions/workflows/codeql.yml/badge.svg)](https://github.com/axelisaac-coding/chatgpt-yolo/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-informational.svg)](manifest.json)
 
@@ -136,11 +136,11 @@ A 44.5-second upstream walkthrough of queuing the next steps and running a workf
 
 ## Install
 
-### Continuation Supervisor development fork
+### Continuation Supervisor v1.2.0 release candidate
 
-The Continuation Supervisor changes on this branch are not yet a formal release. Upstream `v1.1.0` is the clean YOLO baseline and does **not** contain the persistent Goal, recovery, verification, or progress-evidence behavior documented below.
+The Continuation Supervisor changes on this branch are packaged as a `v1.2.0` release candidate. It is not a formal release until authenticated live qualification passes for the exact packaged runtime digest. Upstream `v1.1.0` remains the clean YOLO baseline and does not contain this fork's cross-conversation Supervisor behavior.
 
-For the current browser-test candidate, build this fork from `continuation-supervisor-development` and load the generated `dist/yolo` directory:
+Build the current candidate from `continuation-supervisor-development`:
 
 ```bash
 git clone https://github.com/axelisaac-coding/chatgpt-yolo.git
@@ -148,14 +148,15 @@ cd chatgpt-yolo
 git switch continuation-supervisor-development
 npm run check
 npm run package
+npm run live:digest
 ```
 
-1. Open `chrome://extensions` in Chrome, Edge, Brave, Arc, or another Chromium browser.
+1. Open `chrome://extensions` in a current Chromium browser.
 2. Enable **Developer mode**.
-3. Select **Load unpacked** and choose `dist/yolo`.
+3. Disable other unpacked YOLO copies, then select **Load unpacked** and choose `dist/yolo`.
 4. Open or refresh a saved ChatGPT conversation.
 
-Formal release archives and attestations should be created only after the live ChatGPT endurance/failure-mode test matrix passes.
+Formal release publication is blocked until `npm run validate:live` verifies a committed authenticated-live receipt for that exact packaged runtime.
 
 ## First run
 
@@ -210,6 +211,15 @@ Persistent Goal mode is designed for long projects that should keep moving while
 - Approval, permission, sign-in, or confirmation surfaces that exceed the configured automation policy pause the workflow as `human_required`.
 - `/status` shows work/recovery/verification phase, truthful Goal continuation or Loop iteration count, progress presence, circuit-breaker counters, stop reason, queue, runner, generation, profile, and last action.
 - `stalled`, `rate_limited`, `human_required`, `blocked`, and manually paused workflows remain durable and can be resumed after the cause is resolved.
+
+Cross-conversation continuation is also supervised:
+
+- Hard conversation/context exhaustion retires the source permanently and switches to a durable fallback without sending another source-chat prompt.
+- Proactive rollover uses observable message/text growth and durable continuation count; it never guesses a context percentage.
+- A usable source creates and independently verifies a semantic handoff before migration.
+- Successor creation uses ChatGPT's real New Chat control and binds only an observed real durable `/c/...` route after exact bootstrap receipt and token-bound verification.
+- Ambiguous bootstrap delivery is fail-closed and never auto-resubmitted.
+- Repeated migration preserves one project identity and ordered A->B->C->D conversation lineage across service-worker restarts.
 
 Only standalone terminal markers control automated workflows. Inline marker-shaped text is ignored.
 

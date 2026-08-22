@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "status": "pending",
+  "packageVersion": "1.2.0",
+  "runtimeDigestSha256": "REPLACE_WITH_LIVE_DIGEST",
+  "testedAt": "REPLACE_WITH_UTC_TIMESTAMP",
+  "candidateCommit": "REPLACE_WITH_40_CHARACTER_GIT_SHA",
+  "browser": {
+    "name": "Google Chrome",
+    "version": "REPLACE_WITH_BROWSER_VERSION"
+  },
+  "results": {
+    "onlyCandidateLoaded": false,
+    "savedSourceConversation": false,
+    "proactiveTriggerObserved": false,
+    "semanticHandoffVerified": false,
+    "newChatControlObserved": false,
+    "durableSuccessorObserved": false,
+    "exactBootstrapReceiptObserved": false,
+    "bootstrapVerificationObserved": false,
+    "sourceRetiredBeforeResume": false,
+    "projectLineageAdvanced": false,
+    "successorGoalResumed": false,
+    "noDuplicateSubmission": false,
+    "restartRecoveryObserved": false
+  }
+}

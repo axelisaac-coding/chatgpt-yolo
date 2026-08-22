@@ -12,6 +12,15 @@ All notable changes are documented here.
 - Stabilized CI, CodeQL, package artifacts, and tagged GitHub releases on maintained GitHub Actions versions with timeouts and concurrency controls.
 - Improved public issue forms, pull-request review guidance, code ownership, contribution rules, README disclosures, and the manual release smoke checklist.
 
+## 1.2.0 - Continuation Supervisor release candidate
+
+- Added durable project identity and conversation lineage across automatic successor-chat rollover.
+- Added hard-exhaustion tombstones that permanently prevent automatic work from resuming in a retired source conversation.
+- Added proactive rollover from observable conversation growth, fresh semantic handoff generation/verification, bounded retry/cooldown, and safe hard-limit takeover.
+- Added real New Chat UI migration with pre-click/pre-submit persistence, exact bootstrap receipt verification, token-bound successor verification, and fail-closed ambiguous delivery.
+- Added deterministic A->B->C->D endurance coverage across service-worker restarts and duplicate-tab ownership races.
+- Added a formal-release-only authenticated live qualification gate bound to the exact packaged runtime digest.
+
 ## 1.1.0 - overnight reliability
 
 - Added adaptive visible/hidden/generating tab scheduling for large multi-tab ChatGPT sessions.

@@ -5,7 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, () => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const HOUR_MS = 60 * 60 * 1000;
   const STORAGE_KEYS = Object.freeze({
     global: "yoloGlobal",

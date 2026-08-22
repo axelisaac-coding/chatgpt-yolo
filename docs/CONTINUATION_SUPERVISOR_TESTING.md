@@ -101,6 +101,26 @@ Success requires:
 
 Any failure should be reproduced with the smallest deterministic fixture possible before changing production selectors or safety thresholds.
 
+## Authenticated cross-conversation rollover qualification
+
+Run this on the unchanged packaged release candidate. Do not lower proactive thresholds, patch selectors, seed fake provider-limit surfaces, or otherwise modify the runtime just to force a pass.
+
+1. Run `npm run package` and `npm run live:digest`; record the digest and full candidate commit SHA.
+2. Disable every other unpacked YOLO copy. Load only this candidate and record the current browser/version.
+3. Use a saved source conversation with a durable `/c/...` route and enough genuine existing conversation growth to satisfy an observable proactive threshold, or let a disposable Goal reach that threshold naturally. Do not deliberately manufacture a ChatGPT/provider limit.
+4. Start or resume a harmless Goal and observe one productive settled boundary.
+5. Confirm the project enters proactive rollover before another ordinary continuation is submitted.
+6. Confirm the fresh semantic handoff prompt is delivered exactly once and its independent verification completes.
+7. Confirm the source is durably retired before the New Chat UI side effect.
+8. Confirm ChatGPT's real **New Chat** control is used and no successor `/c/...` URL is fabricated by YOLO.
+9. Confirm bootstrap submission intent is durable before composer mutation and exactly one matching bootstrap user message appears.
+10. Confirm ChatGPT assigns a different real durable successor `/c/...` route and the token-bound assistant verification marker is accepted.
+11. Confirm the same project id advances generation, source lineage points to the successor, and normal Goal work resumes in the successor.
+12. Reload the successor or allow the service worker to restart, then confirm project/workflow state recovers without duplicate submission.
+
+Record only observations actually seen. The required receipt booleans are: `onlyCandidateLoaded`, `savedSourceConversation`, `proactiveTriggerObserved`, `semanticHandoffVerified`, `newChatControlObserved`, `durableSuccessorObserved`, `exactBootstrapReceiptObserved`, `bootstrapVerificationObserved`, `sourceRetiredBeforeResume`, `projectLineageAdvanced`, `successorGoalResumed`, `noDuplicateSubmission`, and `restartRecoveryObserved`.
+
+Create `docs/CONTINUATION_SUPERVISOR_LIVE_QUALIFICATION.json` from the example, set `status` to `passed` only when every required result is true, then run `npm run validate:live`. A digest mismatch means the tested runtime and release runtime differ and the live pass must be repeated.
 ## Release gate
 
 Do not promote the candidate to a formal release until the smoke matrix passes against the current ChatGPT UI and the long-duration run produces no unresolved reliability or safety defect. If a live-browser test cannot be executed in the available environment, record that as an external validation blocker rather than treating unit tests as equivalent evidence.

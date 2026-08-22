@@ -94,10 +94,10 @@ test("tab discard protection is derived from durable settings and workflow state
   assert.doesNotMatch(supervisor, /health\.workflow\?\.status/);
 });
 
-test("the lifecycle release increments the content-script version", () => {
+test("the Continuation Supervisor release increments the content-script version", () => {
   const manifest = JSON.parse(read("manifest.json"));
   const pkg = JSON.parse(read("package.json"));
-  assert.equal(manifest.version, "1.1.0");
-  assert.equal(pkg.version, "1.1.0");
-  assert.match(read("config.js"), /const VERSION = "1\.1\.0"/);
+  assert.equal(manifest.version, "1.2.0");
+  assert.equal(pkg.version, "1.2.0");
+  assert.match(read("config.js"), /const VERSION = "1\.2\.0"/);
 });
