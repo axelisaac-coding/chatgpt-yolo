@@ -17,3 +17,7 @@ Overall estimate: ~86%.
 
 ## Next
 Phase C: real ChatGPT New Chat UI -> durable project bootstrap transaction -> observe real `/c/<id>` -> verify bootstrap -> bind successor lineage -> resume ordinary durable workflow queue. Never fabricate URLs or resend ambiguous bootstrap delivery.
+
+Checkpoint 019 implementation commit: `36d49faf369719878f20d1e0762bcf3b781d2b4c`.
+Source ZIP SHA-256: `7956DFC6BFA9E0C8DBFCC4C7CE565C942C9367478C8D6D0C60E1E040C522C075`.
+Browser candidate SHA-256: `29CE70BA2E23B8AD969AEE308472DE7210B7DD7EB906B935711E01A8D6B4A843`; verified 39/39 files byte-for-byte against `dist/yolo`.
