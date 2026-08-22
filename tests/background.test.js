@@ -500,3 +500,137 @@ test("exhausted conversation stays inert across refresh even with stale queued o
   assert.equal(restart.code, "project.conversation_exhausted");
   assert.equal(storage.yoloQueuesV1[pageId].items.length, 1, "stale queue item remains inspectable but inert");
 });
+
+test("project rollover claim is CAS-protected and survives a fresh service-worker context", async () => {
+  const storage = {};
+  const pageId = "https://chatgpt.com/c/project-rollover-lease";
+  const first = loadBackground(storage);
+  const workflow = await first.invoke({
+    type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Cross conversations", status: "rollover_required", reason: "conversation maximum length" }
+  });
+  assert.equal(workflow.ok, true);
+  const projectId = workflow.project.id;
+  const claimed = await first.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId,
+    expectedRevision: workflow.project.revision, ownerId: "tab-a", leaseMs: 60000
+  });
+  assert.equal(claimed.ok, true);
+  assert.equal(claimed.project.rollover.ownerId, "tab-a");
+  assert.ok(claimed.leaseToken);
+  const stale = await first.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId,
+    expectedRevision: workflow.project.revision, ownerId: "tab-b", leaseMs: 60000
+  });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.code, "project.conflict");
+
+  const second = loadBackground(storage);
+  const reloaded = await second.invoke({ type: "YOLO_PROJECT_GET", projectId });
+  assert.equal(reloaded.project.rollover.leaseToken, claimed.leaseToken);
+  const competing = await second.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId,
+    expectedRevision: reloaded.project.revision, ownerId: "tab-b", leaseMs: 60000
+  });
+  assert.equal(competing.ok, false);
+  assert.equal(competing.code, "project.rollover_busy");
+});
+
+test("background persists and verifies semantic handoff under the rollover lease", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/project-handoff";
+  const workflow = await invoke({
+    type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Persist handoff", status: "rollover_required", reason: "context limit", supervisor: { lastProgressFingerprint: "checkpoint-z", lastProgressAt: 50 } }
+  });
+  const claimed = await invoke({
+    type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: workflow.project.id,
+    expectedRevision: workflow.project.revision, ownerId: "tab-a"
+  });
+  const generation = await invoke({
+    type: "YOLO_PROJECT_HANDOFF_GENERATION_PROMPT", projectId: workflow.project.id,
+    expectedRevision: claimed.project.revision
+  });
+  assert.equal(generation.ok, true);
+  assert.match(generation.prompt, new RegExp(`Project-ID: ${workflow.project.id}`));
+  const handoff = [
+    `Project-ID: ${workflow.project.id}`,
+    "Generation: 1",
+    "Objective: Persist handoff safely.",
+    "Current-State: The source conversation is exhausted.",
+    "Completed: Durable project state and tombstone exist.",
+    "Unresolved: Successor creation remains.",
+    "Validation: Deterministic rollover tests are green.",
+    "Next-Action: Create and bind the successor conversation."
+  ].join("\n");
+  const saved = await invoke({
+    type: "YOLO_PROJECT_HANDOFF_SAVE", projectId: workflow.project.id,
+    expectedRevision: claimed.project.revision, ownerId: "tab-a", leaseToken: claimed.leaseToken, text: handoff
+  });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.project.latestHandoff.verified, false);
+  assert.equal(saved.project.latestHandoff.basisCheckpointId, "checkpoint-z");
+  const verificationPrompt = await invoke({
+    type: "YOLO_PROJECT_HANDOFF_VERIFICATION_PROMPT", projectId: workflow.project.id,
+    expectedRevision: saved.project.revision
+  });
+  assert.match(verificationPrompt.prompt, new RegExp(saved.fingerprint.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const verificationText = `[YOLO:HANDOFF_VERIFIED:${saved.fingerprint}]`;
+  const verified = await invoke({
+    type: "YOLO_PROJECT_HANDOFF_VERIFY", projectId: workflow.project.id,
+    expectedRevision: saved.project.revision, ownerId: "tab-a", leaseToken: claimed.leaseToken, verificationText
+  });
+  assert.equal(verified.ok, true);
+  assert.equal(verified.project.latestHandoff.verified, true);
+  assert.equal(verified.project.rollover.stage, "handoff_ready");
+  assert.equal(verified.project.rollover.handoffSource, "verified_handoff");
+});
+
+test("hard-limit rollover can persist a checkpoint fallback without another source-chat send", async () => {
+  const storage = {};
+  const first = loadBackground(storage);
+  const pageId = "https://chatgpt.com/c/project-fallback";
+  const workflow = await first.invoke({
+    type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Use fallback", status: "rollover_required", reason: "hard context limit", supervisor: { lastProgressFingerprint: "checkpoint-hard", lastProgressAt: 100 } }
+  });
+  const claimed = await first.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: workflow.project.id,
+    expectedRevision: workflow.project.revision, ownerId: "tab-a"
+  });
+  const fallback = await first.invoke({
+    type: "YOLO_PROJECT_ROLLOVER_FALLBACK", projectId: workflow.project.id,
+    expectedRevision: claimed.project.revision, ownerId: "tab-a", leaseToken: claimed.leaseToken
+  });
+  assert.equal(fallback.ok, true);
+  assert.equal(fallback.fallback.kind, "checkpoint");
+  assert.equal(fallback.project.rollover.stage, "handoff_ready");
+  const second = loadBackground(storage);
+  const reloaded = await second.invoke({ type: "YOLO_PROJECT_GET", projectId: workflow.project.id });
+  assert.equal(reloaded.project.rollover.stage, "handoff_ready");
+  assert.equal(reloaded.project.rollover.handoffSource, "checkpoint");
+  assert.equal(reloaded.project.latestVerifiedCheckpoint.id, "checkpoint-hard");
+});
+
+test("project lock prevents workflow sync from overwriting a claimed rollover lease", async () => {
+  const { invoke } = loadBackground();
+  const pageId = "https://chatgpt.com/c/project-lock-race";
+  const initial = await invoke({
+    type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: 0,
+    workflow: { kind: "goal", objective: "Race safely", status: "rollover_required", reason: "context limit" }
+  });
+  const claimPromise = invoke({
+    type: "YOLO_PROJECT_ROLLOVER_CLAIM", projectId: initial.project.id,
+    expectedRevision: initial.project.revision, ownerId: "tab-a", leaseMs: 60000
+  });
+  const workflowPromise = invoke({
+    type: "YOLO_WORKFLOW_SET", pageId, expectedRevision: initial.workflow.revision,
+    workflow: { ...initial.workflow, reason: "context limit still visible" }
+  });
+  await Promise.all([claimPromise, workflowPromise]);
+  const project = await invoke({ type: "YOLO_PROJECT_GET", projectId: initial.project.id });
+  assert.equal(project.ok, true);
+  assert.equal(project.project.rollover.ownerId, "tab-a");
+  assert.ok(project.project.rollover.leaseToken);
+  assert.equal(project.project.status, "rolling_over");
+});

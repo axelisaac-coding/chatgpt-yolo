@@ -66,7 +66,7 @@ Checkpoint 018 changes the release scope materially. Formal release is now block
 | R2 | Exhausted conversation is permanently ineligible for automated continuation | AUTOMATED PASS | Durable project lineage records `status: exhausted` and `doNotContinue: true`. |
 | R3 | Refresh/restored-last-prompt loop cannot resend in exhausted source chat | AUTOMATED PASS | Fresh background VM rejects workflow/queue/action claims, late mark-submitting, restored queue adds, and workflow restart with `project.conversation_exhausted`. |
 | R4 | Multiple Goals on one `/c/...` retain correct project ownership | AUTOMATED PASS | New Goals do not inherit completed/stopped projects; old tombstones remain enforceable even when a newer project shares the route. |
-| R5 | Durable handoff and restart-safe rollover transaction | REQUIRED — NOT YET IMPLEMENTED | Phase B. |
+| R5 | Durable handoff and restart-safe rollover transaction | AUTOMATED PASS | Project schema v2 persists rollover stages, CAS revision, a single-owner lease with expiry takeover, semantic handoff generation/verification, verified-handoff/checkpoint/machine-state fallback, and restart/race coverage. Hard exhaustion uses fallback without sending another source-chat prompt. |
 | R6 | Automatic New Chat creation and verified successor `/c/...` binding | REQUIRED — NOT YET IMPLEMENTED | Phase C; must use actual ChatGPT UI, not fabricate a URL. |
 | R7 | Proactive rollover before hard exhaustion | REQUIRED — NOT YET IMPLEMENTED | Phase D; observable signals only, no invented context percentage. |
 | R8 | Multi-generation project endurance A→B→C→D | REQUIRED — NOT YET IMPLEMENTED | Phase E. |

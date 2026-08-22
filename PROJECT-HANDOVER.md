@@ -263,3 +263,17 @@ Implement Phase B: durable semantic handoff plus a restart-safe project-level ro
 
 ## Revised progress estimate
 Approximately 81% toward the actual ultimate goal after checkpoint 018. The hard-limit detector, project identity/lineage foundation, rollover-required state, and exhausted-chat no-send tombstone are implemented and regression-tested. Durable rollover transaction/handoff, automatic New Chat creation and successor binding, proactive rollover, multi-generation endurance, live rollover qualification, and release hardening remain.
+
+## Implementation checkpoint 019 — durable rollover transaction / Phase B
+Phase B deterministic transaction work is complete. `projects.js` advances project schema to v2 and persists explicit rollover stages, a CAS revision, single-owner rollover lease/token with expiry takeover, structured semantic handoff state, and bounded handoff text. Handoff candidates require stable project/generation identity and required factual fields, are fingerprinted, and require an independent fingerprint-bound verification marker before becoming verified.
+
+Hard-exhausted source conversations never receive another handoff prompt. The runtime claims the project rollover transaction after `rollover_required` and immediately persists the best safe fallback: verified prior handoff first, latest verified checkpoint second, otherwise durable machine project state. The source `doNotContinue` tombstone remains authoritative throughout. Repeated exhaustion observations cannot erase an in-progress lease or transaction.
+
+Background project mutations are serialized under a dedicated project lock. Workflow-to-project synchronization shares that lock, preventing concurrent workflow writes from overwriting a claimed rollover lease. Project operations enforce expected revision CAS. Duplicate tabs are rejected while a valid lease exists; a new owner can take over after expiry. Fresh service-worker contexts recover the same persisted transaction.
+
+Focused Phase B/runtime validation passes 46/46. Full non-environmental suite passes 312/312 across 38 test files. `npm run check`, public-extension verification (39 packaged files), package `--check`, no-bare-installs, and `git diff --check` pass. The same two environment exclusions remain: Windows CRLF portability exact-text test and ffprobe-dependent MP4 tests.
+
+## Exact next step after checkpoint 019
+Phase C: create a successor through ChatGPT's real New Chat UI and bind only an observed real `/c/<id>`. Preserve project/rollover identity across same-tab navigation without weakening durable-page queue rules. Because ChatGPT may not expose `/c/<id>` until the first message, treat the bootstrap as its own durable project transaction: persist bootstrap content/submission intent before touching the transient composer, observe the exact submitted user message and real durable route, verify bootstrap response, then commit successor lineage and resume ordinary durable workflow/queue operation. Never fabricate a conversation URL or automatically resubmit an ambiguous bootstrap delivery.
+
+Revised overall estimate after Phase B: approximately 86% toward the actual cross-conversation orchestration goal.

@@ -57,3 +57,16 @@ test("recovery and verification transitions are durably recorded after queue com
   assert.match(response, /supervisor\.verify\.queue_failed/);
   assert.match(response, /supervisor\.recover\.queue_failed/);
 });
+test("context-limit stop immediately drives durable rollover fallback", () => {
+  const handler = source.slice(source.indexOf("async function handleWorkflow"), source.indexOf("async function tick"));
+  assert.match(handler, /const marked = await markWorkflow\(stopState\.status, stopState\.reason, stopState\.code\)/);
+  assert.match(handler, /marked && stopState\.status === "rollover_required"/);
+  assert.match(handler, /await handleRollover\(\)/);
+});
+
+test("restart tick resumes an incomplete rollover before ordinary workflow handling", () => {
+  const tick = source.slice(source.indexOf("async function tick"), source.indexOf("function scheduleTick"));
+  const rollover = tick.indexOf("await handleRollover()");
+  const workflow = tick.indexOf("await handleWorkflow()");
+  assert.ok(rollover >= 0 && workflow > rollover);
+});

@@ -11,6 +11,7 @@ const Commands = globalThis.YOLOCommands;
 const Projects = globalThis.YOLOProjects;
 const queueLock = Shared.createLock();
 const workflowLock = Shared.createLock();
+const projectLock = Shared.createLock();
 const actionLock = Shared.createLock();
 const MAX_CONVERSATION_QUEUES = 25;
 const MAX_ACTIVE_WORKFLOWS = 25;
@@ -361,7 +362,7 @@ async function handleWorkflowMessage(message, sender) {
     return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "workflow.page_mismatch" };
   }
 
-  return withLock(workflowLock, async () => {
+  return withLock(workflowLock, () => withLock(projectLock, async () => {
     const key = Config.workflowKey(pageId);
     const stored = await storageGet([key]);
     const current = Commands.normalizeWorkflow(stored[key]);
@@ -453,21 +454,67 @@ async function handleWorkflowMessage(message, sender) {
     }
 
     return { ok: false, reason: "Unknown workflow operation" };
-  });
+  }));
 }
 
 async function handleProjectMessage(message, sender) {
-  const pageId = message.pageId;
-  if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "project.page_invalid" };
-  if (!senderMatchesPageId(sender, pageId)) {
+  const pageId = String(message.pageId || "").trim().slice(0, 1000);
+  const projectId = String(message.projectId || "").trim().slice(0, 180);
+  if (sender?.tab?.url && !Config.isSupportedUrl(sender.tab.url)) {
+    return { ok: false, reason: "Project operations require a ChatGPT tab", code: "project.sender_invalid" };
+  }
+  if (pageId && (!validPageId(pageId) || !senderMatchesPageId(sender, pageId))) {
     return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "project.page_mismatch" };
   }
-  if (message.type !== "YOLO_PROJECT_GET") return { ok: false, reason: "Unknown project operation", code: "project.unknown" };
-  const map = await readProjectMap();
-  const found = Projects.findProjectByConversation(map, pageId);
-  return { ok: true, project: found.project };
-}
+  if (!pageId && !projectId) return { ok: false, reason: "Project or conversation identifier is required", code: "project.id_required" };
 
+  return withLock(projectLock, async () => {
+    const map = await readProjectMap();
+    const found = projectId
+      ? { projectId, project: map[projectId] || null }
+      : Projects.findProjectByConversation(map, pageId);
+    const current = found.project ? Projects.normalizeProject(found.project, found.projectId) : null;
+
+    if (message.type === "YOLO_PROJECT_GET") return { ok: true, project: current };
+    if (!current) return { ok: false, reason: "Project not found", code: "project.not_found" };
+
+    const expectedRevision = Math.max(0, Math.round(Number(message.expectedRevision) || 0));
+    if (expectedRevision !== current.revision) {
+      return { ok: false, reason: "Project changed in another tab", code: "project.conflict", project: current };
+    }
+    let result = null;
+    const options = { ownerId: message.ownerId, leaseToken: message.leaseToken, at: Date.now() };
+    if (message.type === "YOLO_PROJECT_ROLLOVER_CLAIM") {
+      result = Projects.claimRollover(current, message.ownerId, { at: options.at, leaseMs: message.leaseMs });
+    } else if (message.type === "YOLO_PROJECT_ROLLOVER_RELEASE") {
+      result = Projects.releaseRollover(current, message.ownerId, message.leaseToken, options.at);
+    } else if (message.type === "YOLO_PROJECT_ROLLOVER_ADVANCE") {
+      result = Projects.advanceRollover(current, message.stage, {
+        ...options,
+        handoffSource: message.handoffSource,
+        successorPageId: message.successorPageId,
+        error: message.error
+      });
+    } else if (message.type === "YOLO_PROJECT_HANDOFF_SAVE") {
+      result = Projects.saveHandoffCandidate(current, message.text, options);
+    } else if (message.type === "YOLO_PROJECT_HANDOFF_VERIFY") {
+      result = Projects.verifyHandoff(current, message.verificationText, options);
+    } else if (message.type === "YOLO_PROJECT_ROLLOVER_FALLBACK") {
+      result = Projects.applyRolloverFallback(current, options);
+    } else if (message.type === "YOLO_PROJECT_HANDOFF_GENERATION_PROMPT") {
+      return { ok: true, project: current, prompt: Projects.handoffGenerationPrompt(current) };
+    } else if (message.type === "YOLO_PROJECT_HANDOFF_VERIFICATION_PROMPT") {
+      return { ok: true, project: current, prompt: Projects.handoffVerificationPrompt(current) };
+    } else {
+      return { ok: false, reason: "Unknown project operation", code: "project.unknown", project: current };
+    }
+    if (!result?.ok) return result || { ok: false, reason: "Project mutation failed", code: "project.mutation_failed", project: current };
+    const project = Projects.normalizeProject(result.project, current.id);
+    map[project.id] = project;
+    await storageSet({ [Config.STORAGE_KEYS.projects]: map });
+    return { ...result, project };
+  });
+}
 async function handleQueueMessage(message, sender) {
   const pageId = message.pageId;
   if (!validPageId(pageId)) return { ok: false, reason: "Invalid conversation identifier", code: "queue.page_invalid" };

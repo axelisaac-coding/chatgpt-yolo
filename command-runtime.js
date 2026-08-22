@@ -93,6 +93,37 @@
     return workflow;
   }
 
+  async function readProject(projectId = state.workflow.projectId) {
+    const id = String(projectId || "").trim();
+    const response = await backgroundSend(id
+      ? { type: "YOLO_PROJECT_GET", projectId: id }
+      : { type: "YOLO_PROJECT_GET", pageId: state.pageId });
+    return response?.ok ? response.project : null;
+  }
+
+  async function claimProjectRollover(project) {
+    if (!project?.id) return null;
+    const response = await backgroundSend({
+      type: "YOLO_PROJECT_ROLLOVER_CLAIM",
+      projectId: project.id,
+      expectedRevision: project.revision,
+      ownerId: state.ownerId
+    });
+    return response?.ok ? response : null;
+  }
+
+  async function fallbackProjectRollover(project, leaseToken) {
+    if (!project?.id || !leaseToken) return null;
+    const response = await backgroundSend({
+      type: "YOLO_PROJECT_ROLLOVER_FALLBACK",
+      projectId: project.id,
+      expectedRevision: project.revision,
+      ownerId: state.ownerId,
+      leaseToken
+    });
+    return response?.ok ? response : null;
+  }
+
   async function writeWorkflow(workflow = state.workflow, pageId = state.pageId) {
     const normalized = Commands.normalizeWorkflow(workflow);
     const response = await backgroundSend({
@@ -449,6 +480,35 @@
     return true;
   }
 
+  async function handleRollover() {
+    const workflow = Commands.normalizeWorkflow(state.workflow);
+    if (workflow.kind !== "goal" || workflow.status !== "rollover_required" || !workflow.projectId) return false;
+    let project = await readProject(workflow.projectId);
+    if (!project || ["completed", "stopped"].includes(project.status)) return false;
+    const stage = project.rollover?.stage || "idle";
+    if (["handoff_ready", "successor_pending", "bootstrap_pending", "successor_bound", "resuming", "complete"].includes(stage)) return false;
+
+    let leaseToken = "";
+    if (project.rollover?.ownerId === state.ownerId && project.rollover?.leaseToken && project.rollover?.leaseExpiresAt > now()) {
+      leaseToken = project.rollover.leaseToken;
+    } else {
+      const claimed = await claimProjectRollover(project);
+      if (!claimed) return false;
+      project = claimed.project;
+      leaseToken = claimed.leaseToken;
+    }
+
+    if (!["required", "handoff_pending"].includes(project.rollover?.stage)) return false;
+    const fallback = await fallbackProjectRollover(project, leaseToken);
+    if (!fallback) return false;
+    await record(
+      `Conversation rollover handoff is ready from ${fallback.fallback?.kind || "durable project state"}`,
+      "info",
+      "supervisor.rollover.handoff_ready"
+    );
+    return true;
+  }
+
   async function handleWorkflow() {
     if (Commands.normalizeWorkflow(state.workflow).status !== "running") return false;
     if (!await claimWorkflow()) return false;
@@ -464,7 +524,8 @@
 
     const stopState = Platforms.workflowStopState(adapter(), apiState.settings || {}, document);
     if (stopState) {
-      await markWorkflow(stopState.status, stopState.reason, stopState.code);
+      const marked = await markWorkflow(stopState.status, stopState.reason, stopState.code);
+      if (marked && stopState.status === "rollover_required") await handleRollover();
       return true;
     }
 
@@ -504,6 +565,7 @@
     try {
       await withWorkflowLock(async () => {
         await syncRoute();
+        await handleRollover();
         await handleWorkflow();
       });
       syncUI();
