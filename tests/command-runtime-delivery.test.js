@@ -28,3 +28,22 @@ test("pending workflow recovery reads authoritative state before history fallbac
   assert.match(pendingHandler, /if \(refreshed\.awaitingResponse \|\| !refreshed\.pendingItemId\) return false/);
   assert.match(pendingHandler, /completedExactly/);
 });
+
+test("resuming a verification-pending workflow preserves verification phase", () => {
+  const resume = source.slice(source.indexOf("async function resumeWorkflow"), source.indexOf("async function showStatus"));
+  assert.match(resume, /verificationPending \? "verification"/);
+  assert.match(resume, /next\.iteration === 0 \? "initial" : "continue"/);
+  for (const status of ["paused", "stalled", "rate_limited", "human_required", "blocked"]) {
+    assert.match(resume, new RegExp(`"${status}"`));
+  }
+});
+
+test("provider and human stop surfaces preempt generation and response recovery", () => {
+  const handler = source.slice(source.indexOf("async function handleWorkflow"), source.indexOf("async function tick"));
+  const stop = handler.indexOf("Platforms.workflowStopState");
+  const generation = handler.indexOf("if (apiState.generating)");
+  const settle = handler.indexOf("Lifecycle.responseStableMs(outcome)");
+  const process = handler.indexOf("return processResponse()");
+  assert.ok(stop >= 0 && generation > stop && settle > generation && process > settle);
+  assert.match(handler, /await markWorkflow\(stopState\.status, stopState\.reason, stopState\.code\)/);
+});

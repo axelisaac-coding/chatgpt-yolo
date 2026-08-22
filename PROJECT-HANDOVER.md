@@ -201,3 +201,15 @@ After checkpoint 014 is pushed, rebuild the runtime package from the new HEAD an
 
 ## Progress estimate
 ~95% overall after checkpoint 014. Core implementation, deterministic endurance, current-public-browser injection smoke, explicit release evidence, and service-worker restart persistence are covered. The dominant remaining work is authenticated saved-conversation/live long-duration validation and hardening from any defects that live test reveals.
+## Implementation checkpoint 015
+Added explicit regression guards for two Supervisor runtime safety invariants discovered during adversarial review. First, resumable stop states (`paused`, `stalled`, `rate_limited`, `human_required`, `blocked`) preserve the completion-verification phase: if `verificationPending` is true, Resume must enqueue the verification prompt rather than ordinary Goal continuation; otherwise the normal initial/continue phase selection remains in force. Second, `Platforms.workflowStopState()` must execute before generation handling, response settling, and `processResponse()`, ensuring provider-limit/human-required UI cannot be misclassified as a missing-marker recovery opportunity.
+
+Focused command-runtime/UI validation passes 39/39. Full non-environmental validation passes 281/281. `npm run check`, extension-boundary verification (38 packaged files), package verification, `node scripts/no-bare-installs.mjs`, and `git diff --check` all pass. No runtime source files changed in checkpoint 015; the change is a release-safety regression test only.
+
+Checkpoint 014 runtime-equivalence proof already rebuilt `dist/yolo` and SHA-256 compared all 38 packaged runtime files against `Continuation-Supervisor-browser-candidate-fdf2114.zip`: 38 vs 38 files, zero missing, zero extra, zero hash mismatches. Checkpoint 015 should remain runtime-equivalent as well and must be re-proven after commit.
+
+## Current exact next step
+Push/checkpoint this test-only increment, rebuild/package-compare runtime once more against the `fdf2114` browser candidate, and attach the latest source checkpoint to the existing draft/prerelease test release. Then review whether any remaining release-matrix scenario can be strengthened deterministically. Do not claim authenticated saved-conversation/live endurance PASS without actual authenticated browser evidence.
+
+## Progress estimate
+~96% overall after checkpoint 015. Deterministic implementation/reliability evidence is strong and current-public-browser injection has passed. Formal release remains blocked primarily by authenticated saved-conversation and elapsed long-duration ChatGPT validation.
