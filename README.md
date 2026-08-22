@@ -287,7 +287,7 @@ Architecture and invariants are documented in [Architecture](docs/ARCHITECTURE.m
 
 Every release must pass automated validation and a manual unpacked-extension smoke pass against the current live ChatGPT interface. ChatGPT does not expose a stable public DOM contract, so selector compatibility cannot be guaranteed by unit tests alone.
 
-See [Releasing](docs/RELEASING.md) and [Troubleshooting](docs/TROUBLESHOOTING.md).
+For the Continuation Supervisor fork, see the [browser-test protocol](docs/CONTINUATION_SUPERVISOR_TESTING.md) and [release evidence matrix](docs/CONTINUATION_SUPERVISOR_RELEASE_EVIDENCE.md). See also [Releasing](docs/RELEASING.md) and [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ## Support development
 

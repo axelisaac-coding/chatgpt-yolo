@@ -4,8 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-function loadBackground() {
-  const storage = {};
+function loadBackground(existingStorage = {}) {
+  const storage = existingStorage;
   let listener = null;
   let failNextSet = false;
   const context = {
@@ -289,6 +289,40 @@ test("workflow prompt enqueue commits queue and workflow together", async () => 
   assert.equal(stale.ok, false);
   assert.equal(stale.code, "workflow.conflict");
   assert.equal(storage.yoloQueuesV1[pageId].items.length, 1);
+});
+
+test("workflow and queue survive a fresh background service-worker context", async () => {
+  const storage = {};
+  const pageId = "https://chatgpt.com/c/service-worker-restart";
+  const first = loadBackground(storage);
+  const queued = await first.invoke({
+    type: "YOLO_WORKFLOW_QUEUE_ADD",
+    pageId,
+    expectedRevision: 0,
+    ownerId: "tab-a",
+    workflow: {
+      kind: "goal", objective: "survive restart", status: "running", promptFingerprint: "owned",
+      supervisor: { recoveryAttempts: 2, verificationPending: true, verificationAttempts: 1, lastProgressFingerprint: "checkpoint-a" }
+    },
+    item: { text: "durable workflow prompt", source: "workflow:goal", sourceId: "goal-restart" }
+  });
+  assert.equal(queued.ok, true);
+  const itemId = queued.item.id;
+
+  const second = loadBackground(storage);
+  const workflow = await second.invoke({ type: "YOLO_WORKFLOW_GET", pageId });
+  const queue = await second.invoke({ type: "YOLO_QUEUE_GET", pageId });
+  assert.equal(workflow.ok, true);
+  assert.equal(workflow.workflow.pendingItemId, itemId);
+  assert.equal(workflow.workflow.promptFingerprint, "owned");
+  assert.equal(workflow.workflow.supervisor.recoveryAttempts, 2);
+  assert.equal(workflow.workflow.supervisor.verificationPending, true);
+  assert.equal(workflow.workflow.supervisor.verificationAttempts, 1);
+  assert.equal(workflow.workflow.supervisor.lastProgressFingerprint, "checkpoint-a");
+  assert.equal(queue.ok, true);
+  assert.equal(queue.state.items.length, 1);
+  assert.equal(queue.state.items[0].id, itemId);
+  assert.equal(queue.state.items[0].text, "durable workflow prompt");
 });
 
 test("clearing a workflow removes its per-conversation storage key", async () => {

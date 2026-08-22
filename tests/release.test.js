@@ -92,3 +92,10 @@ test("Continuation Supervisor documentation is truthful about persistent Goal an
   assert.match(protocol, /approximately 15 hours/i);
   assert.match(protocol, /Do not deliberately manufacture or circumvent provider usage\/rate limits/i);
 });
+test("Continuation Supervisor release evidence preserves the authenticated live blocker", () => {
+  const evidence = read("docs/CONTINUATION_SUPERVISOR_RELEASE_EVIDENCE.md");
+  assert.match(evidence, /AUTH LIVE REQUIRED/);
+  assert.match(evidence, /1,000 productive Goal continuations/i);
+  assert.match(evidence, /authenticated saved-conversation browser pass/i);
+  assert.match(evidence, /does not claim message delivery/i);
+});

@@ -187,3 +187,17 @@ Preserve this browser-smoke evidence in Git, create a source checkpoint ZIP for 
 
 ## Progress estimate
 ~92% overall after the public live-browser smoke. Core implementation, documentation, 1,000-continuation deterministic endurance tests, exact candidate packaging, and current-public-ChatGPT extension injection are validated. The principal remaining evidence gap is authenticated saved-conversation smoke/endurance testing and any hardening revealed by that test.
+## Implementation checkpoint 014
+Preserved and completed the post-browser-smoke evidence-hardening increment. `tests/background.test.js` now supports recreating a fresh background/service-worker VM against the same persisted storage object, and a regression test proves an atomic workflow+queue survives that restart with the same pending queue-item identity, workflow prompt fingerprint, recovery attempts, verification state/attempt count, last progress fingerprint, and queued prompt text. This closes the previously implicit Manifest V3 service-worker restart persistence gap.
+
+Added `docs/CONTINUATION_SUPERVISOR_RELEASE_EVIDENCE.md`, an explicit 16-scenario release matrix that separates AUTOMATED PASS, PUBLIC BROWSER PASS, AUTH LIVE REQUIRED, and ENV BASELINE evidence. README now links the browser-test protocol and release-evidence matrix. A release regression test requires the evidence matrix to keep the authenticated saved-conversation browser pass unresolved and to state that public smoke evidence does not claim message delivery.
+
+Validation: focused background/release/endurance tests pass 30/30. Full non-environmental suite passes 279/279. `npm run check`, extension-boundary verification (38 packaged files), package verification, `node scripts/no-bare-installs.mjs`, and `git diff --check` all pass. The only excluded baseline environment-specific files remain `portability-integration.test.js` (Windows LF/CRLF exact assertion) and `validate-asset-manifest.test.js` (ffprobe-dependent MP4 cases with ffprobe unavailable).
+
+The release matrix honestly retains authenticated live testing as the principal release blocker: real saved-conversation composer delivery/response observation, real browser refresh/restart behavior, genuine missing-marker recovery after long ChatGPT work, provider/human stop UI, verified completion, and elapsed long-duration operation representative of ~15 hours. Do not promote the draft/prerelease candidate until that evidence exists.
+
+## Current exact next step
+After checkpoint 014 is pushed, rebuild the runtime package from the new HEAD and byte-compare every packaged file against the existing `fdf2114` browser candidate. Because checkpoint 014 changes only tests/evidence/source README links/handover and the packaged README is sourced from unchanged `README.release.md`, the runtime should be byte-identical; prove this rather than assuming it. Then clean only the disposable Edge test profile/processes, and continue deterministic hardening for any release-matrix row that can be strengthened without authenticated ChatGPT access.
+
+## Progress estimate
+~95% overall after checkpoint 014. Core implementation, deterministic endurance, current-public-browser injection smoke, explicit release evidence, and service-worker restart persistence are covered. The dominant remaining work is authenticated saved-conversation/live long-duration validation and hardening from any defects that live test reveals.
