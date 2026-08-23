@@ -374,3 +374,9 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - Live result: the multi-paragraph Goal prompt received a confirmed receipt, the workflow remained active, and `[YOLO:CONTINUE]` generated continuation 2 automatically.
 - Current source DOM is heavily virtualized, so visible-text thresholds may stay low; unchanged durable-continuation fallback remains the valid proactive path.
 - Remaining Phase F work: natural proactive rollover, verified semantic handoff, real New Chat successor, bootstrap verification, source retirement, lineage advance, successor Goal resume, no duplicate send, and restart recovery.
+
+### Authenticated live continuation 4 — checkpoint 029
+- `onlyCandidateLoaded`: observed true. Chrome Extensions exposed exactly one YOLO card: YOLO for ChatGPT 1.2.0, id `pppjopmnmkjecpinanikoenckeknalnk`; the historical registration path is absent and no second YOLO card is loaded.
+- `savedSourceConversation`: observed true. Chrome address bar shows the authenticated source on durable route `/c/6a893c91-5800-83e8-ae86-b8dd3f1eed98` inside the YOLO Fork project.
+- YOLO automatically reached continuation 4 and remained active with Pause/Edit/Stop controls.
+- These are partial live observations only; Phase F remains incomplete until proactive rollover and successor/restart evidence are observed.

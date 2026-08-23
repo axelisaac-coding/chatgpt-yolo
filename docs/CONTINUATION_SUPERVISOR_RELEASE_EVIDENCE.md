@@ -116,3 +116,9 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - This verifies another full Goal cycle on the exact checkpoint-029 runtime: receipt → response settle → terminal marker parse → next workflow prompt enqueue/delivery.
 - The runtime is unchanged from `4f50903156040c7d9726b8c1b9dfd595e1e33e84`; this is evidence-only progress.
 - R9 remains AUTH LIVE REQUIRED until the unchanged-threshold proactive rollover and successor lifecycle are actually observed.
+
+### Authenticated live continuation 4 — checkpoint 029
+- `onlyCandidateLoaded`: observed true. Chrome Extensions exposed exactly one YOLO card: YOLO for ChatGPT 1.2.0, id `pppjopmnmkjecpinanikoenckeknalnk`; the historical registration path is absent and no second YOLO card is loaded.
+- `savedSourceConversation`: observed true. Chrome address bar shows the authenticated source on durable route `/c/6a893c91-5800-83e8-ae86-b8dd3f1eed98` inside the YOLO Fork project.
+- YOLO automatically reached continuation 4 and remained active with Pause/Edit/Stop controls.
+- These are partial live observations only; Phase F remains incomplete until proactive rollover and successor/restart evidence are observed.
