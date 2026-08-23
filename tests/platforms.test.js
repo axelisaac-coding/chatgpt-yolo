@@ -271,6 +271,18 @@ test("conversation context exhaustion is classified separately from provider lim
   assert.equal(Platforms.workflowStopState(adapter, {}, doc).status, "rate_limited");
 });
 
+test("maximum-length banner beside Start new chat triggers rollover without alert semantics", () => {
+  const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
+  const ownerDocument = { defaultView: view };
+  const banner = { nodeType: 1, ownerDocument, textContent: "You've reached the maximum length for this conversation, but you can keep talking by starting a new chat.", parentElement: null, getBoundingClientRect: () => ({ width: 640, height: 90 }) };
+  const control = { nodeType: 1, ownerDocument, textContent: "Start new chat", parentElement: banner, disabled: false, getAttribute(name) { return name === "aria-label" ? "Start new chat" : null; }, getBoundingClientRect: () => ({ width: 120, height: 36 }) };
+  const adapter = { errorSelectors: [], newChatSelectors: [], supportsApprovals: false };
+  const doc = { querySelectorAll(selector) { return selector === "a, button" ? [control] : []; } };
+  const exhausted = Platforms.conversationLimitState(adapter, doc);
+  assert.equal(exhausted?.status, "rollover_required");
+  assert.match(exhausted?.reason || "", /maximum length for this conversation/i);
+});
+
 test("ordinary new-chat suggestions without exhaustion evidence do not trigger rollover", () => {
   const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
   const ownerDocument = { defaultView: view };

@@ -89,6 +89,18 @@ test("recovery and verification transitions are durably recorded after queue com
   assert.match(response, /supervisor\.verify\.queue_failed/);
   assert.match(response, /supervisor\.recover\.queue_failed/);
 });
+test("hard conversation limit preempts a paused Goal before ordinary workflow handling", () => {
+  const helper = source.slice(source.indexOf("async function handleConversationLimitBeforeWorkflow"), source.indexOf("async function handleWorkflow"));
+  assert.match(helper, /Platforms\.conversationLimitState\(adapter\(\), document\)/);
+  assert.match(helper, /markWorkflow\("rollover_required", stopState\.reason, stopState\.code\)/);
+  assert.match(helper, /await handleRollover\(\)/);
+  const tick = source.slice(source.indexOf("async function tick"), source.indexOf("function scheduleTick"));
+  const hard = tick.indexOf("await handleConversationLimitBeforeWorkflow()");
+  const rollover = tick.indexOf("await handleRollover()");
+  const workflow = tick.indexOf("await handleWorkflow()");
+  assert.ok(hard >= 0 && rollover > hard && workflow > rollover);
+});
+
 test("context-limit stop immediately drives durable rollover fallback", () => {
   const handler = source.slice(source.indexOf("async function handleWorkflow"), source.indexOf("async function tick"));
   assert.match(handler, /const marked = await markWorkflow\(stopState\.status, stopState\.reason, stopState\.code\)/);

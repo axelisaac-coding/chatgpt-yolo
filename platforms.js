@@ -191,7 +191,15 @@
     if (!adapter) return null;
     const selectors = [...adapter.errorSelectors, "[role=\"dialog\"]", "[role=\"alertdialog\"]", "[role=\"status\"]"];
     const candidates = uniqueElements(selectors.flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
-    for (const element of candidates) {
+    const newChatControls = uniqueElements([
+      ...(adapter.newChatSelectors || []).flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))),
+      ...Array.from(documentLike.querySelectorAll("a, button")).filter(newChatSignal)
+    ]);
+    for (const control of newChatControls) {
+      let context = control;
+      for (let depth = 0; context && depth < 6; depth += 1, context = context.parentElement) candidates.push(context);
+    }
+    for (const element of uniqueElements(candidates)) {
       if (!visible(element)) continue;
       const text = normalizedText(element);
       const exhaustion = CONVERSATION_EXHAUSTED_RE.test(text);

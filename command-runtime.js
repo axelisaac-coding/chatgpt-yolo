@@ -987,6 +987,20 @@
     return true;
   }
 
+  async function handleConversationLimitBeforeWorkflow() {
+    const workflow = Commands.normalizeWorkflow(state.workflow);
+    if (workflow.kind !== "goal" || !workflow.objective || ["idle", "completed"].includes(workflow.status)) return false;
+    const api = engine();
+    if (!api || !await api.ensureReady()) return false;
+    const apiState = api.getState();
+    if (!apiState.hydrated) return false;
+    const stopState = Platforms.conversationLimitState(adapter(), document);
+    if (!stopState) return false;
+    if (workflow.status !== "rollover_required" && !await markWorkflow("rollover_required", stopState.reason, stopState.code)) return true;
+    await handleRollover();
+    return true;
+  }
+
   async function handleWorkflow() {
     if (Commands.normalizeWorkflow(state.workflow).status !== "running") return false;
     if (!await claimWorkflow()) return false;
@@ -1045,6 +1059,7 @@
     try {
       await withWorkflowLock(async () => {
         await syncRoute();
+        await handleConversationLimitBeforeWorkflow();
         await handleRollover();
         await handleWorkflow();
       });
