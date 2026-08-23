@@ -147,6 +147,21 @@ test("submission receipt survives a later user message after the exact queued pr
   assert.equal(Platforms.submissionObserved(adapter, { expectedText: "queued prompt", previousSnapshot }, documentLike), true);
 });
 
+test("submission receipt tolerates ChatGPT paragraph whitespace topology only", () => {
+  const messages = [{ textContent: "baseline" }];
+  const adapter = { userSelectors: ["user"] };
+  const documentLike = { querySelectorAll(selector) { return selector === "user" ? messages : []; } };
+  const expected = "First paragraph.\n\nSecond paragraph with [YOLO:CONTINUE].";
+  const previousSnapshot = Platforms.userMessageSnapshot(adapter, documentLike, expected);
+
+  messages.push({ textContent: "First paragraph. Second paragraph with [YOLO:CONTINUE]." });
+  assert.equal(Platforms.submissionObserved(adapter, { expectedText: expected, previousSnapshot }, documentLike), true);
+
+  const changed = [{ textContent: "baseline" }, { textContent: "First paragraph. Second paragraph with [YOLO:DONE]." }];
+  const changedDoc = { querySelectorAll(selector) { return selector === "user" ? changed : []; } };
+  assert.equal(Platforms.submissionObserved(adapter, { expectedText: expected, previousSnapshot }, changedDoc), false);
+});
+
 test("submission receipt does not reuse an older identical prompt", () => {
   const messages = [{ textContent: "queued prompt" }];
   const adapter = { userSelectors: ["user"] };
