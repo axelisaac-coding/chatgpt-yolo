@@ -14,6 +14,7 @@
   const CONVERSATION_STATUSES = new Set(["active", "rolling_over", "exhausted", "completed", "failed"]);
   const ROLLOVER_STAGES = new Set(["idle", "required", "handoff_pending", "handoff_ready", "successor_pending", "bootstrap_pending", "successor_bound", "resuming", "complete", "failed"]);
   const ROLLOVER_LEASE_MS = 2 * 60 * 1000;
+  const RECOVERABLE_ROLLOVER_WINDOW_MS = 2 * 60 * 1000;
   const BOOTSTRAP_STATES = new Set(["idle", "prepared", "submitting", "observed", "verified", "delivery_unknown"]);
   const ROLLOVER_MODES = new Set(["idle", "hard", "proactive"]);
   const HANDOFF_ACTIONS = new Set(["idle", "generate", "verify"]);
@@ -192,6 +193,25 @@
       .filter((entry) => entry.currentConversationId === pageId || entry.conversationChain.some((conversation) => conversation.pageId === pageId))
       .sort((a, b) => b.updatedAt - a.updatedAt || b.revision - a.revision)[0] || null;
     return project ? { projectId: project.id, project, map } : { projectId: "", project: null, map };
+  }
+
+  function findRecoverablePendingRollover(rawMap, { at = Date.now(), maxAgeMs = RECOVERABLE_ROLLOVER_WINDOW_MS } = {}) {
+    const map = normalizeProjectMap(rawMap, at);
+    const windowMs = Math.max(1000, finite(maxAgeMs, RECOVERABLE_ROLLOVER_WINDOW_MS));
+    const matches = Object.values(map).filter((project) => {
+      const rollover = normalizeRollover(project.rollover);
+      const age = at - rollover.newChatOpeningAt;
+      return project.status === "rolling_over"
+        && rollover.stage === "bootstrap_pending"
+        && rollover.bootstrapState === "prepared"
+        && Boolean(rollover.bootstrapText && rollover.bootstrapFingerprint)
+        && !rollover.successorPageId
+        && rollover.newChatOpeningAt > 0
+        && age >= 0
+        && age <= windowMs;
+    }).sort((a, b) => b.rollover.newChatOpeningAt - a.rollover.newChatOpeningAt || b.updatedAt - a.updatedAt);
+    if (matches.length !== 1) return { projectId: "", project: null, map, ambiguous: matches.length > 1, count: matches.length };
+    return { projectId: matches[0].id, project: matches[0], map, ambiguous: false, count: 1 };
   }
 
   function createProject({ objective = "", pageId = "", workflow = {}, at = Date.now() } = {}) {
@@ -695,6 +715,7 @@
     MAX_CONVERSATIONS,
     MAX_BOOTSTRAP_LENGTH,
     ROLLOVER_LEASE_MS,
+    RECOVERABLE_ROLLOVER_WINDOW_MS,
     ROLLOVER_STAGES,
     BOOTSTRAP_STATES,
     ROLLOVER_MODES,
@@ -709,6 +730,7 @@
     normalizeProject,
     normalizeProjectMap,
     findProjectByConversation,
+    findRecoverablePendingRollover,
     createProject,
     syncProjectFromWorkflow,
     markConversationExhausted,

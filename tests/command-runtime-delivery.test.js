@@ -131,6 +131,16 @@ test("New Chat navigation intent is persisted before the UI click", () => {
   assert.match(handler, /newChatOpeningAt > NEW_CHAT_CONFIRM_TIMEOUT_MS|now\(\) - project\.rollover\.newChatOpeningAt > NEW_CHAT_CONFIRM_TIMEOUT_MS/);
 });
 
+test("New Chat click exceptions preserve the released durable rollover for recovery", () => {
+  const handler = source.slice(source.indexOf("async function handleRollover"), source.indexOf("async function handleWorkflow"));
+  const released = handler.indexOf("await releaseProjectRollover(project, leaseToken)");
+  const clicked = handler.indexOf("control.click()", released);
+  const uncertain = handler.indexOf("supervisor.rollover.new_chat_click_uncertain", clicked);
+  const sourceTimeout = handler.indexOf("if (state.pageId === project.rollover.sourcePageId)", clicked);
+  assert.ok(released >= 0 && clicked > released && uncertain > clicked && sourceTimeout > uncertain);
+  assert.doesNotMatch(handler.slice(clicked, sourceTimeout), /failProjectRollover\(/);
+  assert.match(handler.slice(sourceTimeout), /supervisor\.rollover\.new_chat_not_observed/);
+});
 test("bootstrap submission intent is durable before composer mutation and send", () => {
   const submit = source.slice(source.indexOf("async function submitBootstrap"), source.indexOf("async function resumeSuccessorGoal"));
   const mark = submit.indexOf("await markBootstrapSubmitting(project, leaseToken)");
@@ -236,4 +246,18 @@ test("proactive handoff queue failure falls back to durable evidence", () => {
   assert.ok(failed >= 0 && fallback > failed);
   assert.ok(abort === -1 || fallback < abort);
   assert.match(progress, /continuing from verified durable fallback/);
+});
+
+test("New Chat rollover survives SPA history lag and a tab boundary", () => {
+  const submit = source.slice(source.indexOf("async function submitBootstrap"), source.indexOf("async function resumeSuccessorGoal"));
+  assert.match(submit, /!Config\.isDurablePageId\(state\.pageId\)/);
+  assert.match(submit, /supervisor\.rollover\.destination_transition/);
+  assert.match(submit, /supervisor\.rollover\.destination_not_fresh/);
+  const handler = source.slice(source.indexOf("async function handleRollover"), source.indexOf("async function handleWorkflow"));
+  assert.match(handler, /await recoverPendingRolloverProject\(\)/);
+  assert.match(handler, /await releaseProjectRollover\(project, leaseToken\)/);
+  assert.match(handler, /state\.pageId === project\.rollover\?\.sourcePageId[\s\S]*bootstrap_pending[\s\S]*NEW_CHAT_CONFIRM_TIMEOUT_MS/);
+  const recover = source.slice(source.indexOf("async function recoverPendingRolloverProject"), source.indexOf("async function claimProjectRollover"));
+  assert.match(recover, /YOLO_PROJECT_RECOVER_PENDING/);
+  assert.match(recover, /saveRolloverProjectId\(response\.project\.id\)/);
 });

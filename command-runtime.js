@@ -114,6 +114,15 @@
     return response?.ok ? response.project : null;
   }
 
+  async function recoverPendingRolloverProject() {
+    if (state.rolloverProjectId || !state.pageId || Config.isDurablePageId(state.pageId)) return null;
+    const response = await backgroundSend({ type: "YOLO_PROJECT_RECOVER_PENDING", maxAgeMs: BOOTSTRAP_CONFIRM_TIMEOUT_MS });
+    if (!response?.ok || !response.project?.id || response.ambiguous) return null;
+    state.rolloverProjectId = saveRolloverProjectId(response.project.id);
+    await record("Recovered persisted rollover ownership in ChatGPT New Chat", "info", "supervisor.rollover.pending_recovered");
+    return response.project;
+  }
+
   async function claimProjectRollover(project) {
     if (!project?.id) return null;
     const response = await backgroundSend({
@@ -121,6 +130,18 @@
       projectId: project.id,
       expectedRevision: project.revision,
       ownerId: state.ownerId
+    });
+    return response?.ok ? response : null;
+  }
+
+  async function releaseProjectRollover(project, leaseToken) {
+    if (!project?.id || !leaseToken) return null;
+    const response = await backgroundSend({
+      type: "YOLO_PROJECT_ROLLOVER_RELEASE",
+      projectId: project.id,
+      expectedRevision: project.revision,
+      ownerId: state.ownerId,
+      leaseToken
     });
     return response?.ok ? response : null;
   }
@@ -679,6 +700,10 @@
     const target = composer();
     if (!text || !target) return false;
     if (Platforms.latestUserText(adapter()) || Platforms.latestAssistantText(adapter())) {
+      if (!Config.isDurablePageId(state.pageId)) {
+        await record("Rollover bootstrap is waiting for the fresh New Chat surface", "info", "supervisor.rollover.destination_transition", false);
+        return false;
+      }
       return failProjectRollover(project, leaseToken, "New Chat bootstrap refused because the destination already contains conversation history", "supervisor.rollover.destination_not_fresh");
     }
     if (Platforms.composerText(target).trim()) {
@@ -805,6 +830,7 @@
 
   async function handleRollover() {
     const workflow = Commands.normalizeWorkflow(state.workflow);
+    if (!state.rolloverProjectId && state.pageId && !Config.isDurablePageId(state.pageId)) await recoverPendingRolloverProject();
     const projectId = state.rolloverProjectId || (workflow.kind === "goal" ? workflow.projectId : "");
     if (!projectId) return false;
     let project = await readProject(projectId);
@@ -829,6 +855,10 @@
     if (project.rollover?.stage === "failed" || project.rollover?.bootstrapState === "delivery_unknown") {
       clearRolloverSession();
       return false;
+    }
+    if (state.pageId === project.rollover?.sourcePageId && project.rollover?.stage === "bootstrap_pending" && project.rollover?.newChatOpeningAt) {
+      const elapsed = now() - project.rollover.newChatOpeningAt;
+      if (project.rollover.bootstrapState !== "prepared" || elapsed <= NEW_CHAT_CONFIRM_TIMEOUT_MS) return false;
     }
 
     const claimed = await claimProjectRollover(project);
@@ -872,12 +902,16 @@
         const marked = await markNewChatOpening(project, leaseToken);
         if (!marked?.ok) return false;
         project = marked.project;
+        const released = await releaseProjectRollover(project, leaseToken);
+        if (!released?.ok) return false;
+        project = released.project;
         try {
           control.click();
           await record("Opened ChatGPT New Chat for project rollover", "info", "supervisor.rollover.new_chat_opened");
           return true;
         } catch (error) {
-          return failProjectRollover(project, leaseToken, `New Chat navigation became uncertain: ${Shared.errorMessage(error)}`, "supervisor.rollover.new_chat_unknown");
+          await record(`New Chat navigation click became uncertain after durable intent was persisted: ${Shared.errorMessage(error)}`, "warning", "supervisor.rollover.new_chat_click_uncertain");
+          return true;
         }
       }
       if (state.pageId === project.rollover.sourcePageId) {

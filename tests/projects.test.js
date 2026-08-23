@@ -485,3 +485,22 @@ test("proactive retries are capped per generation after safe aborts", () => {
   assert.equal(blocked.ok, false);
   assert.equal(blocked.code, "project.proactive_attempt_limit");
 });
+
+test("recoverable pending rollover lookup is unique, recent, and fail-closed", () => {
+  const pending = Projects.normalizeProject({
+    id: "recover-a", objective: "Continue safely", status: "rolling_over", currentConversationId: pageA,
+    conversationChain: [{ generation: 1, pageId: pageA, status: "exhausted", doNotContinue: true }],
+    rollover: { stage: "bootstrap_pending", mode: "hard", sourcePageId: pageA, bootstrapState: "prepared", bootstrapText: "persisted bootstrap", bootstrapFingerprint: "fingerprint-a", newChatOpeningAt: 10000 }
+  }, "recover-a", 10000);
+  const one = Projects.findRecoverablePendingRollover({ [pending.id]: pending }, { at: 10500, maxAgeMs: 1000 });
+  assert.equal(one.projectId, "recover-a");
+  assert.equal(one.count, 1);
+  assert.equal(one.ambiguous, false);
+  const second = Projects.normalizeProject({ ...pending, id: "recover-b", rollover: { ...pending.rollover, newChatOpeningAt: 10100 } }, "recover-b", 10100);
+  const ambiguous = Projects.findRecoverablePendingRollover({ [pending.id]: pending, [second.id]: second }, { at: 10500, maxAgeMs: 1000 });
+  assert.equal(ambiguous.project, null);
+  assert.equal(ambiguous.ambiguous, true);
+  const stale = Projects.findRecoverablePendingRollover({ [pending.id]: pending }, { at: 12001, maxAgeMs: 1000 });
+  assert.equal(stale.project, null);
+  assert.equal(stale.count, 0);
+});

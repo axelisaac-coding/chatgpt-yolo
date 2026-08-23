@@ -507,10 +507,15 @@ async function handleProjectMessage(message, sender) {
   if (pageId && (!validPageId(pageId) || !senderMatchesPageId(sender, pageId))) {
     return { ok: false, reason: "Conversation identifier does not match the sending tab", code: "project.page_mismatch" };
   }
-  if (!pageId && !projectId) return { ok: false, reason: "Project or conversation identifier is required", code: "project.id_required" };
+  const recoverPending = message.type === "YOLO_PROJECT_RECOVER_PENDING";
+  if (!pageId && !projectId && !recoverPending) return { ok: false, reason: "Project or conversation identifier is required", code: "project.id_required" };
 
   return withLock(projectLock, async () => {
     const map = await readProjectMap();
+    if (recoverPending) {
+      const recovered = Projects.findRecoverablePendingRollover(map, { at: Date.now(), maxAgeMs: message.maxAgeMs });
+      return { ok: true, project: recovered.project, projectId: recovered.projectId, ambiguous: recovered.ambiguous, count: recovered.count };
+    }
     const found = projectId
       ? { projectId, project: map[projectId] || null }
       : Projects.findProjectByConversation(map, pageId);
