@@ -535,6 +535,8 @@ async function handleProjectMessage(message, sender) {
       result = Projects.claimRollover(current, ownerId, { at: options.at, leaseMs: message.leaseMs });
     } else if (message.type === "YOLO_PROJECT_ROLLOVER_RELEASE") {
       result = Projects.releaseRollover(current, ownerId, message.leaseToken, options.at);
+    } else if (message.type === "YOLO_PROJECT_FAILED_ROLLOVER_RETRY") {
+      result = Projects.retryFailedHardRollover(current, { at: options.at });
     } else if (message.type === "YOLO_PROJECT_ROLLOVER_ADVANCE") {
       result = Projects.advanceRollover(current, message.stage, {
         ...options,

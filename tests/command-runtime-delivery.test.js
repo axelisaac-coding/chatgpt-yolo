@@ -261,3 +261,19 @@ test("New Chat rollover survives SPA history lag and a tab boundary", () => {
   assert.match(recover, /YOLO_PROJECT_RECOVER_PENDING/);
   assert.match(recover, /saveRolloverProjectId\(response\.project\.id\)/);
 });
+test("failed hard rollover safely recovers before reacquiring a lease", () => {
+  const helper = source.slice(source.indexOf("async function retryFailedHardRollover"), source.indexOf("async function fallbackProjectRollover"));
+  assert.match(helper, /YOLO_PROJECT_FAILED_ROLLOVER_RETRY/);
+  assert.match(helper, /expectedRevision: project\.revision/);
+  const handler = source.slice(source.indexOf("async function handleRollover"), source.indexOf("async function handleWorkflow"));
+  const deliveryUnknown = handler.indexOf('bootstrapState === "delivery_unknown"');
+  const failed = handler.indexOf('project.rollover?.stage === "failed"');
+  const hard = handler.indexOf('project.rollover.mode === "hard"', failed);
+  const status = handler.indexOf('workflow.status === "rollover_required"', hard);
+  const sourceGuard = handler.indexOf('state.pageId === project.rollover.sourcePageId', status);
+  const retry = handler.indexOf('await retryFailedHardRollover(project)', sourceGuard);
+  const claim = handler.indexOf('const claimed = await claimProjectRollover(project)', retry);
+  assert.ok(deliveryUnknown >= 0 && failed > deliveryUnknown && hard > failed && status > hard && sourceGuard > status && retry > sourceGuard && claim > retry);
+  assert.match(handler.slice(retry, claim), /project\.rollover_recovery_cooldown/);
+  assert.match(handler.slice(retry, claim), /supervisor\.rollover\.hard_recovery/);
+});

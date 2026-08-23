@@ -7,7 +7,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, (Shared, Commands) => {
   "use strict";
 
-  const PROJECT_SCHEMA_VERSION = 4;
+  const PROJECT_SCHEMA_VERSION = 5;
   const MAX_PROJECTS = 100;
   const MAX_CONVERSATIONS = 64;
   const PROJECT_STATUSES = new Set(["active", "rollover_required", "rolling_over", "completed", "stopped"]);
@@ -15,6 +15,7 @@
   const ROLLOVER_STAGES = new Set(["idle", "required", "handoff_pending", "handoff_ready", "successor_pending", "bootstrap_pending", "successor_bound", "resuming", "complete", "failed"]);
   const ROLLOVER_LEASE_MS = 2 * 60 * 1000;
   const RECOVERABLE_ROLLOVER_WINDOW_MS = 2 * 60 * 1000;
+  const HARD_ROLLOVER_RECOVERY_LIMITS = Object.freeze({ maxAttempts: 3, retryCooldownMs: 15 * 1000 });
   const BOOTSTRAP_STATES = new Set(["idle", "prepared", "submitting", "observed", "verified", "delivery_unknown"]);
   const ROLLOVER_MODES = new Set(["idle", "hard", "proactive"]);
   const HANDOFF_ACTIONS = new Set(["idle", "generate", "verify"]);
@@ -77,7 +78,7 @@
   }
 
   function freshRollover() {
-    return { stage: "idle", mode: "idle", sourcePageId: "", reason: "", ownerId: "", leaseToken: "", leaseExpiresAt: 0, startedAt: 0, updatedAt: 0, proactiveAttempts: 0, proactiveLastAttemptAt: 0, proactiveEvidenceCode: "", proactiveEvidenceMessages: 0, proactiveEvidenceChars: 0, proactiveEvidenceContinuations: 0, handoffSource: "", handoffFingerprint: "", handoffAction: "idle", handoffPromptText: "", handoffPromptFingerprint: "", handoffBaselineAssistantFingerprint: "", handoffBaselineUserFingerprint: "", handoffPromptPreparedAt: 0, successorPageId: "", newChatRequestedAt: 0, newChatOpeningAt: 0, bootstrapText: "", bootstrapFingerprint: "", bootstrapToken: "", bootstrapState: "idle", bootstrapSubmittedAt: 0, bootstrapObservedAt: 0, bootstrapVerifiedAt: 0, error: "" };
+    return { stage: "idle", mode: "idle", sourcePageId: "", reason: "", ownerId: "", leaseToken: "", leaseExpiresAt: 0, startedAt: 0, updatedAt: 0, recoveryAttempts: 0, recoveryLastAttemptAt: 0, proactiveAttempts: 0, proactiveLastAttemptAt: 0, proactiveEvidenceCode: "", proactiveEvidenceMessages: 0, proactiveEvidenceChars: 0, proactiveEvidenceContinuations: 0, handoffSource: "", handoffFingerprint: "", handoffAction: "idle", handoffPromptText: "", handoffPromptFingerprint: "", handoffBaselineAssistantFingerprint: "", handoffBaselineUserFingerprint: "", handoffPromptPreparedAt: 0, successorPageId: "", newChatRequestedAt: 0, newChatOpeningAt: 0, bootstrapText: "", bootstrapFingerprint: "", bootstrapToken: "", bootstrapState: "idle", bootstrapSubmittedAt: 0, bootstrapObservedAt: 0, bootstrapVerifiedAt: 0, error: "" };
   }
 
   function normalizeRollover(raw = {}) {
@@ -92,6 +93,8 @@
       leaseExpiresAt: Math.max(0, finite(rollover.leaseExpiresAt, 0)),
       startedAt: Math.max(0, finite(rollover.startedAt, 0)),
       updatedAt: Math.max(0, finite(rollover.updatedAt, 0)),
+      recoveryAttempts: Math.max(0, Math.round(finite(rollover.recoveryAttempts, 0))),
+      recoveryLastAttemptAt: Math.max(0, finite(rollover.recoveryLastAttemptAt, 0)),
       proactiveAttempts: Math.max(0, Math.round(finite(rollover.proactiveAttempts, 0))),
       proactiveLastAttemptAt: Math.max(0, finite(rollover.proactiveLastAttemptAt, 0)),
       proactiveEvidenceCode: cleanText(rollover.proactiveEvidenceCode, 120),
@@ -346,6 +349,40 @@
     return { ok: true, project: normalizeProject(project, project.id, at) };
   }
 
+  function retryFailedHardRollover(rawProject, { at = Date.now() } = {}) {
+    const project = normalizeProject(rawProject, rawProject?.id, at);
+    const rollover = normalizeRollover(project.rollover);
+    const source = project.conversationChain.find((entry) => entry.pageId === rollover.sourcePageId);
+    if (rollover.mode !== "hard" || rollover.stage !== "failed" || project.status !== "rollover_required") {
+      return { ok: false, code: "project.rollover_recovery_ineligible", reason: "Failed rollover is not eligible for automatic hard-limit recovery", project };
+    }
+    if (!source?.doNotContinue || rollover.successorPageId || ["submitting", "observed", "verified", "delivery_unknown"].includes(rollover.bootstrapState)) {
+      return { ok: false, code: "project.rollover_recovery_unsafe", reason: "Failed rollover cannot be retried safely because successor delivery may have started", project };
+    }
+    const limits = HARD_ROLLOVER_RECOVERY_LIMITS;
+    if (rollover.recoveryAttempts >= limits.maxAttempts) {
+      return { ok: false, code: "project.rollover_recovery_limit", reason: "Automatic hard-limit rollover recovery attempt limit reached", project };
+    }
+    if (rollover.recoveryLastAttemptAt && at - rollover.recoveryLastAttemptAt < limits.retryCooldownMs) {
+      return { ok: false, code: "project.rollover_recovery_cooldown", reason: "Automatic hard-limit rollover recovery cooldown is active", project };
+    }
+    const reset = freshRollover();
+    project.status = "rollover_required";
+    project.rollover = {
+      ...reset,
+      mode: "hard",
+      stage: "required",
+      sourcePageId: rollover.sourcePageId,
+      reason: rollover.reason || source.rolloverReason || "ChatGPT conversation context limit reached",
+      startedAt: rollover.startedAt || at,
+      updatedAt: at,
+      recoveryAttempts: rollover.recoveryAttempts + 1,
+      recoveryLastAttemptAt: at
+    };
+    project.revision += 1;
+    project.updatedAt = at;
+    return { ok: true, code: "project.rollover_recovery_ready", project: normalizeProject(project, project.id, at) };
+  }
   function planProactiveRollover(rawProject, pageId, { workflow = {}, growth = {}, at = Date.now() } = {}) {
     const project = normalizeProject(rawProject, rawProject?.id, at);
     const page = cleanText(pageId, 1000);
@@ -716,6 +753,7 @@
     MAX_BOOTSTRAP_LENGTH,
     ROLLOVER_LEASE_MS,
     RECOVERABLE_ROLLOVER_WINDOW_MS,
+    HARD_ROLLOVER_RECOVERY_LIMITS,
     ROLLOVER_STAGES,
     BOOTSTRAP_STATES,
     ROLLOVER_MODES,
@@ -739,6 +777,7 @@
     rolloverLeaseActive,
     claimRollover,
     releaseRollover,
+    retryFailedHardRollover,
     planProactiveRollover,
     prepareProactiveHandoffGeneration,
     prepareProactiveHandoffVerification,

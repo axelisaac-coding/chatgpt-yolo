@@ -146,6 +146,16 @@
     return response?.ok ? response : null;
   }
 
+  async function retryFailedHardRollover(project) {
+    if (!project?.id) return null;
+    const response = await backgroundSend({
+      type: "YOLO_PROJECT_FAILED_ROLLOVER_RETRY",
+      projectId: project.id,
+      expectedRevision: project.revision,
+      ownerId: state.ownerId
+    });
+    return response || null;
+  }
   async function fallbackProjectRollover(project, leaseToken) {
     if (!project?.id || !leaseToken) return null;
     const response = await backgroundSend({
@@ -478,6 +488,8 @@
       "Rollover stage": project?.rollover?.stage || "-",
       "Bootstrap state": project?.rollover?.bootstrapState || "-",
       "Handoff source": project?.rollover?.handoffSource || "-",
+      "Rollover recovery attempts": project?.rollover ? String(project.rollover.recoveryAttempts || 0) : "-",
+      "Rollover error": project?.rollover?.error || "-",
       Workflow: workflow.status === "idle" ? "None" : `/${workflow.kind} · ${workflow.status}`,
       Phase: workflow.status === "idle" ? "—" : Commands.workflowPhase(workflow),
       Objective: workflow.status === "idle" ? "—" : workflow.objective,
@@ -852,9 +864,27 @@
         if (!project) return false;
       }
     }
-    if (project.rollover?.stage === "failed" || project.rollover?.bootstrapState === "delivery_unknown") {
+    if (project.rollover?.bootstrapState === "delivery_unknown") {
       clearRolloverSession();
       return false;
+    }
+    if (project.rollover?.stage === "failed") {
+      const canRecoverHardFailure = project.rollover.mode === "hard"
+        && workflow.kind === "goal"
+        && workflow.status === "rollover_required"
+        && state.pageId === project.rollover.sourcePageId;
+      if (!canRecoverHardFailure) {
+        clearRolloverSession();
+        return false;
+      }
+      const recovered = await retryFailedHardRollover(project);
+      if (!recovered?.ok) {
+        if (recovered?.code !== "project.rollover_recovery_cooldown") clearRolloverSession();
+        return false;
+      }
+      project = recovered.project;
+      state.rolloverProjectId = saveRolloverProjectId(project.id);
+      await record("Restarted a safely retryable hard-limit rollover after an earlier pre-bootstrap failure", "warning", "supervisor.rollover.hard_recovery");
     }
     if (state.pageId === project.rollover?.sourcePageId && project.rollover?.stage === "bootstrap_pending" && project.rollover?.newChatOpeningAt) {
       const elapsed = now() - project.rollover.newChatOpeningAt;

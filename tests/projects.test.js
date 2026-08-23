@@ -486,6 +486,38 @@ test("proactive retries are capped per generation after safe aborts", () => {
   assert.equal(blocked.code, "project.proactive_attempt_limit");
 });
 
+test("failed pre-bootstrap hard rollover is safely retryable with bounded recovery", () => {
+  const workflow = Commands.normalizeWorkflow({ kind: "goal", objective: "Recover hard rollover", status: "running" }, 1000);
+  let project = Projects.ensureProjectForWorkflow({}, pageA, workflow, 1000).project;
+  project = Projects.markConversationExhausted(project, pageA, { workflow: { ...workflow, status: "rollover_required", reason: "maximum length" }, at: 1100 });
+  const claim = Projects.claimRollover(project, "hard-retry-tab", { at: 1200, leaseMs: 60000 });
+  const ready = Projects.applyRolloverFallback(claim.project, { ownerId: "hard-retry-tab", leaseToken: claim.leaseToken, at: 1300 });
+  const pending = Projects.advanceRollover(ready.project, "successor_pending", { ownerId: "hard-retry-tab", leaseToken: claim.leaseToken, at: 1400 });
+  const bootstrap = Projects.prepareBootstrap(pending.project, { ownerId: "hard-retry-tab", leaseToken: claim.leaseToken, at: 1500 });
+  const failed = Projects.advanceRollover(bootstrap.project, "failed", { ownerId: "hard-retry-tab", leaseToken: claim.leaseToken, error: "new chat not observed", at: 1600 });
+  assert.equal(failed.project.rollover.bootstrapState, "prepared");
+  assert.equal(failed.project.rollover.stage, "failed");
+
+  const recovered = Projects.retryFailedHardRollover(failed.project, { at: 20000 });
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.project.status, "rollover_required");
+  assert.equal(recovered.project.rollover.stage, "required");
+  assert.equal(recovered.project.rollover.bootstrapState, "idle");
+  assert.equal(recovered.project.rollover.bootstrapText, "");
+  assert.equal(recovered.project.rollover.newChatOpeningAt, 0);
+  assert.equal(recovered.project.rollover.ownerId, "");
+  assert.equal(recovered.project.rollover.recoveryAttempts, 1);
+  assert.equal(recovered.project.conversationChain[0].doNotContinue, true);
+
+  const cooldownProject = Projects.normalizeProject({ ...recovered.project, rollover: { ...recovered.project.rollover, stage: "failed", bootstrapState: "prepared" } }, recovered.project.id, 20001);
+  const cooldown = Projects.retryFailedHardRollover(cooldownProject, { at: 20000 + Projects.HARD_ROLLOVER_RECOVERY_LIMITS.retryCooldownMs - 1 });
+  assert.equal(cooldown.code, "project.rollover_recovery_cooldown");
+
+  const limitedProject = Projects.normalizeProject({ ...failed.project, rollover: { ...failed.project.rollover, recoveryAttempts: Projects.HARD_ROLLOVER_RECOVERY_LIMITS.maxAttempts, recoveryLastAttemptAt: 0 } }, failed.project.id, 30000);
+  assert.equal(Projects.retryFailedHardRollover(limitedProject, { at: 30000 }).code, "project.rollover_recovery_limit");
+  const ambiguousDelivery = Projects.normalizeProject({ ...failed.project, rollover: { ...failed.project.rollover, bootstrapState: "delivery_unknown" } }, failed.project.id, 30000);
+  assert.equal(Projects.retryFailedHardRollover(ambiguousDelivery, { at: 30000 }).code, "project.rollover_recovery_unsafe");
+});
 test("recoverable pending rollover lookup is unique, recent, and fail-closed", () => {
   const pending = Projects.normalizeProject({
     id: "recover-a", objective: "Continue safely", status: "rolling_over", currentConversationId: pageA,
