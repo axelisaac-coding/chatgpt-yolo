@@ -128,3 +128,9 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - Chrome accessibility found exactly one occurrence of the continuation-5 workflow prompt and active Pause/Edit/Stop controls.
 - This is authenticated pre-rollover duplicate-safety evidence; it does not satisfy final bootstrap noDuplicateSubmission, which remains pending successor migration.
 - R9 remains AUTH LIVE REQUIRED.
+
+### Authenticated live continuation 6 — checkpoint 029
+- YOLO automatically generated continuation 6 and the exact workflow prompt was observed once in the live conversation.
+- The toolbar popup simultaneously reported `No queued work` after delivery, providing authenticated pre-rollover evidence against a hidden duplicate pending item.
+- Goal controls remained `Pause/Edit/Stop`; runtime bytes are unchanged from checkpoint 029.
+- This does not satisfy final bootstrap `noDuplicateSubmission`; successor rollover evidence is still required.
