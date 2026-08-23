@@ -22,6 +22,8 @@ All notable changes are documented here.
 - Added a formal-release-only authenticated live qualification gate bound to the exact packaged runtime digest.
 - Fixed tab-supervisor fallback reinjection so `shared.js` loads before `commands.js` on fresh/install recovery paths.
 - Fixed full slash-command submission so recognized YOLO commands are intercepted at the composer form boundary instead of escaping as ordinary ChatGPT messages.
+- Fixed false ChatGPT error recovery triggered by generic red-styled authored content; recovery now requires semantic error surfaces or real Retry controls.
+- Hardened delivery receipts for multi-paragraph Goal prompts across later user messages, whitespace reflow, and collapsed-message UI chrome such as `Show more`.
 
 ## 1.1.0 - overnight reliability
 

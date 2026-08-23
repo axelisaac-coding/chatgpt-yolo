@@ -103,3 +103,10 @@ Observed: authenticated one-line queue delivery had passed, but multi-paragraph 
 Checkpoint 026 additionally removed generic red CSS classes from ChatGPT error detection after repeated false recovery activity was observed without a real Retry/error surface.
 
 Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-256: `638466DC127AA11A3A83442C4B1F6DBDAF7FD888AAE5521F982C91F528A539CB`; full suite 387/387; focused receipt gate 32/32; 39 packaged files. Live PASS remains pending post-reload authenticated rollover qualification.
+### Authenticated live attempt - checkpoint 029 receipt success
+- Candidate runtime: `4f50903156040c7d9726b8c1b9dfd595e1e33e84` / SHA-256 `673A6983D0309B30A7E3F57E6A865592C0CDD0E197BA96BBD964B00B9D726C65`.
+- Checkpoint 028 diagnostics proved the rendered ChatGPT user subtree appended interactive `Show more` chrome to the authored Goal prompt.
+- Checkpoint 029 excludes interactive descendants from user-message receipt extraction; focused regression 34/34 and full suite 389/389 passed.
+- Authenticated browser observation: the multi-paragraph Goal prompt was acknowledged, workflow controls stayed active (`Pause/Edit/Stop`), and YOLO generated continuation 2 after the assistant emitted `[YOLO:CONTINUE]`.
+- This advances live evidence for exact workflow prompt delivery and Goal self-continuation, but does not satisfy the full 13-field qualification receipt.
+- R9 remains AUTH LIVE REQUIRED until real proactive rollover, successor bootstrap verification, lineage advance, no-duplicate evidence, and restart recovery are observed on the exact final runtime.

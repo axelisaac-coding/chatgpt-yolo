@@ -365,3 +365,12 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - Validation: 387/387 full suite; 32/32 focused receipt tests; 39 runtime files; full release gates pass.
 - Runtime SHA-256: `638466DC127AA11A3A83442C4B1F6DBDAF7FD888AAE5521F982C91F528A539CB`.
 - Installed unpacked folder is exact 39/39 parity; browser Reload is required before the next live Goal receipt test.
+## Checkpoint 029 - authenticated Goal receipt and continuation
+- Runtime commit: `4f50903156040c7d9726b8c1b9dfd595e1e33e84`.
+- Checkpoint 028 live diagnostics showed `users=5 expected=0/0 latestLen=1101 expectedLen=1091`, proving the receipt selector found the user bubble but included 10 characters of interactive `Show more` UI chrome.
+- Canonical fix: user-message receipt/latest-user extraction now removes interactive descendants before authored-text normalization; assistant parsing is unchanged.
+- Focused gate: 34/34. Full gate: 389/389. Packaged runtime: 39 files.
+- Runtime SHA-256: `673A6983D0309B30A7E3F57E6A865592C0CDD0E197BA96BBD964B00B9D726C65`.
+- Live result: the multi-paragraph Goal prompt received a confirmed receipt, the workflow remained active, and `[YOLO:CONTINUE]` generated continuation 2 automatically.
+- Current source DOM is heavily virtualized, so visible-text thresholds may stay low; unchanged durable-continuation fallback remains the valid proactive path.
+- Remaining Phase F work: natural proactive rollover, verified semantic handoff, real New Chat successor, bootstrap verification, source retirement, lineage advance, successor Goal resume, no duplicate send, and restart recovery.
