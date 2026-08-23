@@ -156,3 +156,5 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - Validation: focused interruption/runtime gate 59/59; full suite 393/393; package boundary 39 files; installed parity 39/39.
 - Authenticated activation: after one controlled Resume to clear the inherited pre-031 pause, the Goal was active and the YOLO popup exposed exactly one visible queue item labeled `managed by workflow` containing the Goal continuation.
 - This proves a real self-prompt path is armed. Full automatic manual-interruption recovery still requires a subsequent live interjection with no manual Resume; R9 remains AUTH LIVE REQUIRED.
+
+- TEST-ONLY tag `continuation-supervisor-v1.2.0-live-candidate-297887d` peels to runtime commit `297887d37bff3d62117f1ea63447a22f2c5d17be`; matching GitHub release is draft + prerelease. Formal `v1.2.0` remains blocked on full live qualification.

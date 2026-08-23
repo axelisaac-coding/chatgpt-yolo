@@ -32,5 +32,8 @@
   "liveQualificationPartial": {
     "onlyCandidateLoaded": true,
     "savedSourceConversation": true
-  }
+  },
+  "testOnlyTag": "continuation-supervisor-v1.2.0-live-candidate-297887d",
+  "testOnlyTagCommit": "297887d37bff3d62117f1ea63447a22f2c5d17be",
+  "draftPrereleaseUrl": "https://github.com/axelisaac-coding/chatgpt-yolo/releases/tag/untagged-8638df6a4ad7cfaea3d4"
 }
