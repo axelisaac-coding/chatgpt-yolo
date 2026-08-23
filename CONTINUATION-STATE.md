@@ -10,7 +10,7 @@ Authenticated diagnostics proved ChatGPT's collapsed user bubble adds interactiv
 Checkpoint 026's false red-text recovery fix remains clean in live use; checkpoint 027 whitespace canonicalization and checkpoint 028 privacy-safe receipt diagnostics remain part of the current runtime.
 Validation: full suite 389/389; focused authored-receipt gate 34/34; 39 packaged runtime files; syntax, package, no-bare-installs, asset validation, and diff integrity pass.
 Canonical runtime digest: `673A6983D0309B30A7E3F57E6A865592C0CDD0E197BA96BBD964B00B9D726C65`.
-Authenticated live state: checkpoint 029 is loaded in Chrome; the multi-paragraph Goal prompt was acknowledged; the Goal remained active and automatically produced continuation 2 after `[YOLO:CONTINUE]`.
+Authenticated live state: checkpoint 029 is loaded in Chrome; the multi-paragraph Goal prompt was acknowledged; the Goal remained active and automatically self-continued through continuation 3 after `[YOLO:CONTINUE]`, with no manual Resume or queue send required for the continuation-2 to continuation-3 transition.
 Overall estimate: ~99%; unchanged-threshold proactive rollover and successor qualification remain the substantive release blocker.
 
 ## Checkpoint 029 artifacts

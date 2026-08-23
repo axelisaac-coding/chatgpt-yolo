@@ -110,3 +110,9 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - Authenticated browser observation: the multi-paragraph Goal prompt was acknowledged, workflow controls stayed active (`Pause/Edit/Stop`), and YOLO generated continuation 2 after the assistant emitted `[YOLO:CONTINUE]`.
 - This advances live evidence for exact workflow prompt delivery and Goal self-continuation, but does not satisfy the full 13-field qualification receipt.
 - R9 remains AUTH LIVE REQUIRED until real proactive rollover, successor bootstrap verification, lineage advance, no-duplicate evidence, and restart recovery are observed on the exact final runtime.
+
+### Authenticated live continuation 3 — checkpoint 029
+- YOLO automatically generated continuation 3 after continuation 2 completed with `[YOLO:CONTINUE]`; no manual queue send or Resume action was required for this transition.
+- This verifies another full Goal cycle on the exact checkpoint-029 runtime: receipt → response settle → terminal marker parse → next workflow prompt enqueue/delivery.
+- The runtime is unchanged from `4f50903156040c7d9726b8c1b9dfd595e1e33e84`; this is evidence-only progress.
+- R9 remains AUTH LIVE REQUIRED until the unchanged-threshold proactive rollover and successor lifecycle are actually observed.
