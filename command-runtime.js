@@ -709,7 +709,7 @@
 
   async function submitBootstrap(project, leaseToken) {
     const text = String(project.rollover?.bootstrapText || "").trim();
-    const target = composer();
+    let target = composer();
     if (!text || !target) return false;
     if (Platforms.latestUserText(adapter()) || Platforms.latestAssistantText(adapter())) {
       if (!Config.isDurablePageId(state.pageId)) {
@@ -718,30 +718,45 @@
       }
       return failProjectRollover(project, leaseToken, "New Chat bootstrap refused because the destination already contains conversation history", "supervisor.rollover.destination_not_fresh");
     }
-    if (Platforms.composerText(target).trim()) {
+
+    const expectedFingerprint = project.rollover.bootstrapFingerprint;
+    let currentText = Platforms.composerText(target).trim();
+    if (currentText && Commands.fingerprint(currentText) !== expectedFingerprint) {
       await record("Rollover bootstrap is waiting for an empty composer", "warning", "supervisor.rollover.composer_busy", false);
       return false;
     }
+    if (!currentText) {
+      Platforms.setComposerValue(target, text);
+      currentText = Platforms.composerText(target).trim();
+      if (Commands.fingerprint(currentText) !== expectedFingerprint) return false;
+      await record("Staged persisted rollover bootstrap in the fresh New Chat composer", "info", "supervisor.rollover.bootstrap_staged", false);
+    }
+
+    let sendButton = Platforms.findSendButton(adapter(), target, document);
+    if (!sendButton) {
+      await record("Rollover bootstrap is staged and waiting for ChatGPT's Send control", "info", "supervisor.rollover.bootstrap_send_wait", false);
+      return false;
+    }
+
     const marked = await markBootstrapSubmitting(project, leaseToken);
     if (!marked?.ok) return false;
     project = marked.project;
     try {
-      Platforms.setComposerValue(target, text);
-      const written = Commands.fingerprint(Platforms.composerText(target)) === project.rollover.bootstrapFingerprint;
-      if (!written) {
+      target = composer();
+      if (!target || Commands.fingerprint(Platforms.composerText(target).trim()) !== expectedFingerprint) {
         await cancelBootstrapSubmitting(project, leaseToken);
         return false;
       }
-      const submitted = Platforms.submitComposer(adapter(), target, document);
-      if (!submitted) {
-        if (Commands.fingerprint(Platforms.composerText(target)) === project.rollover.bootstrapFingerprint) Platforms.setComposerValue(target, "");
+      sendButton = Platforms.findSendButton(adapter(), target, document);
+      if (!sendButton) {
         await cancelBootstrapSubmitting(project, leaseToken);
         return false;
       }
+      sendButton.click();
       await record("Submitted persisted rollover bootstrap through ChatGPT New Chat", "info", "supervisor.rollover.bootstrap_submitted");
       return true;
     } catch (error) {
-      return persistBootstrapUnknown(project, leaseToken, `Bootstrap submission side effect became uncertain: ${Shared.errorMessage(error)}`);
+      return persistBootstrapUnknown(project, leaseToken, "Bootstrap submission side effect became uncertain: " + Shared.errorMessage(error));
     }
   }
 

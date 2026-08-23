@@ -141,15 +141,21 @@ test("New Chat click exceptions preserve the released durable rollover for recov
   assert.doesNotMatch(handler.slice(clicked, sourceTimeout), /failProjectRollover\(/);
   assert.match(handler.slice(sourceTimeout), /supervisor\.rollover\.new_chat_not_observed/);
 });
-test("bootstrap submission intent is durable before composer mutation and send", () => {
+test("bootstrap draft waits for a real Send control before durable submission intent", () => {
   const submit = source.slice(source.indexOf("async function submitBootstrap"), source.indexOf("async function resumeSuccessorGoal"));
-  const mark = submit.indexOf("await markBootstrapSubmitting(project, leaseToken)");
   const write = submit.indexOf("Platforms.setComposerValue(target, text)");
-  const send = submit.indexOf("Platforms.submitComposer(adapter(), target, document)");
-  assert.ok(mark >= 0 && write > mark && send > write);
+  const waitForSend = submit.indexOf("Platforms.findSendButton(adapter(), target, document)", write);
+  const mark = submit.indexOf("await markBootstrapSubmitting(project, leaseToken)", waitForSend);
+  const click = submit.indexOf("sendButton.click()", mark);
+  assert.ok(write >= 0 && waitForSend > write && mark > waitForSend && click > mark);
+  assert.match(submit, /bootstrap_staged/);
+  assert.match(submit, /bootstrap_send_wait/);
+  assert.match(submit, /Commands\.fingerprint\(currentText\) !== expectedFingerprint/);
+  assert.doesNotMatch(submit, /Platforms\.submitComposer\(/);
   assert.match(submit, /cancelBootstrapSubmitting/);
   assert.match(submit, /persistBootstrapUnknown/);
 });
+
 test("successor receipt and bootstrap marker are verified before normal Goal resumption", () => {
   const handler = source.slice(source.indexOf("async function handleRollover"), source.indexOf("async function handleWorkflow"));
   const observed = handler.indexOf("await observeBootstrap(project, leaseToken, state.pageId, observedText)");
