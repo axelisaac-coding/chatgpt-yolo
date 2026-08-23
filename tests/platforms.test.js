@@ -162,6 +162,17 @@ test("submission receipt tolerates ChatGPT paragraph whitespace topology only", 
   assert.equal(Platforms.submissionObserved(adapter, { expectedText: expected, previousSnapshot }, changedDoc), false);
 });
 
+test("user receipt excludes interactive Show more chrome from authored text", () => {
+  const clone = { textContent: "queued prompt\nShow more", querySelectorAll() { return [{ remove() { clone.textContent = "queued prompt"; } }]; } };
+  const message = { textContent: "queued prompt\nShow more", cloneNode() { return clone; } };
+  const adapter = { userSelectors: ["user"] };
+  const documentLike = { querySelectorAll(selector) { return selector === "user" ? [message] : []; } };
+  const snapshot = Platforms.userMessageSnapshot(adapter, documentLike, "queued prompt");
+  assert.equal(snapshot.expectedCount, 1);
+  assert.equal(snapshot.latestText, "queued prompt");
+  assert.equal(Platforms.latestUserText(adapter, documentLike), "queued prompt");
+});
+
 test("submission receipt does not reuse an older identical prompt", () => {
   const messages = [{ textContent: "queued prompt" }];
   const adapter = { userSelectors: ["user"] };

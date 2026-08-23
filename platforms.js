@@ -227,6 +227,16 @@
       .trim();
   }
 
+  function authoredMessageText(element) {
+    if (!element) return "";
+    if (typeof element.cloneNode !== "function") return normalizedMultilineText(element);
+    const clone = element.cloneNode(true);
+    for (const node of Array.from(clone.querySelectorAll?.("button, [role='button'], input, textarea, select") || [])) {
+      node.remove?.();
+    }
+    return normalizedMultilineText(clone);
+  }
+
   function latestMessageText(selectors, documentLike = document) {
     const candidates = uniqueElements((Array.isArray(selectors) ? selectors : [])
       .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
@@ -238,7 +248,10 @@
   }
 
   function latestUserText(adapter, documentLike = document) {
-    return adapter ? latestMessageText(adapter.userSelectors, documentLike) : "";
+    if (!adapter) return "";
+    const candidates = uniqueElements((adapter.userSelectors || [])
+      .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
+    return authoredMessageText(candidates.at(-1));
   }
 
   function conversationGrowthSnapshot(adapter, documentLike = document) {
@@ -337,7 +350,7 @@
     if (!adapter) return { count: 0, latestText: "", expectedText: expected, expectedCount: 0 };
     const candidates = uniqueElements(adapter.userSelectors
       .flatMap((selector) => Array.from(documentLike.querySelectorAll(selector))));
-    const texts = candidates.map((element) => comparableText(normalizedMultilineText(element)));
+    const texts = candidates.map((element) => comparableText(authoredMessageText(element)));
     return {
       count: candidates.length,
       latestText: texts.at(-1) || "",
