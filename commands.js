@@ -457,7 +457,25 @@
     if (workflow.status !== "running" || !workflow.awaitingResponse) {
       return { workflow, action: "ignore", reason: "Workflow is not awaiting a response", code: "workflow.not_waiting" };
     }
+    const text = String(responseText || "").trim();
+    if (!text) return { workflow, action: "ignore", reason: "No assistant response is available", code: "workflow.response_missing" };
+
     if (!workflow.promptFingerprint || userFingerprint !== workflow.promptFingerprint) {
+      if (workflow.kind === "goal") {
+        workflow.awaitingResponse = false;
+        workflow.sawGeneration = false;
+        workflow.responseCandidateFingerprint = "";
+        workflow.responseCandidateSince = 0;
+        workflow.lastAssistantFingerprint = fingerprint(text);
+        workflow.lastResponseAt = at;
+        workflow.updatedAt = at;
+        return {
+          workflow,
+          action: "interrupted",
+          reason: "Manual conversation turn completed; resume the persistent Goal with a fresh workflow prompt",
+          code: "command.workflow.interrupted"
+        };
+      }
       return {
         workflow,
         action: "paused",
@@ -465,9 +483,6 @@
         code: "command.workflow.ownership_lost"
       };
     }
-
-    const text = String(responseText || "").trim();
-    if (!text) return { workflow, action: "ignore", reason: "No assistant response is available", code: "workflow.response_missing" };
 
     workflow.awaitingResponse = false;
     workflow.sawGeneration = false;

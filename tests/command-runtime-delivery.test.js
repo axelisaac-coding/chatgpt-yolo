@@ -48,10 +48,20 @@ test("provider and human stop surfaces preempt generation and response recovery"
   assert.match(handler, /await markWorkflow\(stopState\.status, stopState\.reason, stopState\.code\)/);
 });
 
+test("manual Goal interruption queues a fresh workflow-owned continuation instead of pausing", () => {
+  const response = source.slice(source.indexOf("async function processResponse"), source.indexOf("async function handlePendingWorkflowItem"));
+  const start = response.indexOf('decision.action === "interrupted"');
+  const end = response.indexOf('decision.action === "recover"', start);
+  const branch = response.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(branch, /Commands\.workflowPrompt\(state\.workflow, "continue"\)/);
+  assert.match(branch, /command\.workflow\.interruption_queue_failed/);
+  assert.match(branch, /await record\(decision\.reason, "info", decision\.code\)/);
+});
 test("recovery and verification transitions are durably recorded after queue commit", () => {
   const response = source.slice(source.indexOf("async function processResponse"), source.indexOf("async function handlePendingWorkflowItem"));
   const records = response.match(/else await record\(decision\.reason, "info", decision\.code\)/g) || [];
-  assert.equal(records.length, 2);
+  assert.equal(records.length, 3);
   assert.ok(response.indexOf('decision.action === "verify"') < response.indexOf('else await record(decision.reason, "info", decision.code)'));
   assert.ok(response.indexOf('decision.action === "recover"') < response.lastIndexOf('else await record(decision.reason, "info", decision.code)'));
   assert.match(response, /supervisor\.verify\.queue_failed/);
@@ -144,7 +154,7 @@ test("proactive rollover is planned before the next Goal continuation prompt", (
   const growth = process.indexOf("Platforms.conversationGrowthSnapshot(adapter(), document)");
   const plan = process.indexOf("await planProactiveWorkflow(state.workflow, growth)");
   const rollover = process.indexOf("await handleRollover()");
-  const continuation = process.indexOf('Commands.workflowPrompt(state.workflow, "continue")');
+  const continuation = process.indexOf('Commands.workflowPrompt(state.workflow, "continue")', rollover);
   assert.ok(growth >= 0 && plan > growth && rollover > plan && continuation > rollover);
 });
 

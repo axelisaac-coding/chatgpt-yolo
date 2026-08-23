@@ -551,6 +551,13 @@
       else await record(decision.reason, "info", decision.code);
       return true;
     }
+    if (decision.action === "interrupted") {
+      const prompt = Commands.workflowPrompt(state.workflow, "continue");
+      const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });
+      if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not resume the Goal after a manual conversation turn", "command.workflow.interruption_queue_failed");
+      else await record(decision.reason, "info", decision.code);
+      return true;
+    }
     if (decision.action === "recover") {
       const prompt = Commands.workflowPrompt(state.workflow, "recovery");
       const queued = await queuePrompt(prompt, { workflow: state.workflow, source: `workflow:${state.workflow.kind}` });

@@ -135,6 +135,23 @@ test("workflow response decisions enforce ownership, markers, and caps", () => {
   assert.equal(done.action, "completed");
 });
 
+test("persistent goals resume after a manual conversation turn without counting it as Goal progress", () => {
+  const goal = Commands.normalizeWorkflow({
+    kind: "goal", objective: "ship", status: "running", iteration: 7,
+    awaitingResponse: true, sawGeneration: true, responseCandidateFingerprint: "candidate",
+    responseCandidateSince: 123, promptFingerprint: "owned"
+  }, 1000);
+  const text = "Answer to the user manual interjection.\n[YOLO:CONTINUE]";
+  const decision = Commands.decideWorkflowResponse(goal, text, { userFingerprint: "manual", at: 1100 });
+  assert.equal(decision.action, "interrupted");
+  assert.equal(decision.code, "command.workflow.interrupted");
+  assert.equal(decision.workflow.iteration, 7);
+  assert.equal(decision.workflow.awaitingResponse, false);
+  assert.equal(decision.workflow.sawGeneration, false);
+  assert.equal(decision.workflow.responseCandidateFingerprint, "");
+  assert.equal(decision.workflow.responseCandidateSince, 0);
+  assert.equal(decision.workflow.lastAssistantFingerprint, Commands.fingerprint(text));
+});
 test("awaiting workflows retain and clear response stability candidates safely", () => {
   const waiting = Commands.normalizeWorkflow({
     kind: "loop",
