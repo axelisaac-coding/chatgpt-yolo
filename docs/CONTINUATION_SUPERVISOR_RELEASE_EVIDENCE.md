@@ -163,3 +163,9 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - Before the prior response ended, YOLO exposed exactly one pending queue item labeled `managed by workflow` containing the Goal continuation prompt.
 - That workflow-owned item was subsequently delivered as the current continuation 9; Chrome accessibility found the prompt exactly once and the live Goal strip remained `Pause/Edit/Stop`.
 - This demonstrates an executable checkpoint-031 self-prompt path. It does not yet prove the fresh manual-interruption auto-resume path or any successor-rollover qualification field.
+
+### Authenticated live continuation 10 — checkpoint 031
+- YOLO automatically generated continuation 10 on checkpoint 031.
+- Chrome accessibility found the continuation-10 workflow prompt exactly once and the active Goal strip showed `Pause/Edit/Stop`.
+- Runtime commit/digest remain unchanged; this is evidence-only endurance progress.
+- Full successor rollover qualification remains pending.
