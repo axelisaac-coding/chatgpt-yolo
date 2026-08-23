@@ -148,3 +148,11 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - Runtime SHA-256: `A2609836E00AC0453A6D5AEAE6A98A4A54600EB23B9E5619BBBAE59D7A794AAC`.
 - Authenticated live evidence: checkpoint 030 was mirrored with 39/39 exact parity, reloaded in Chrome, and YOLO generated a real workflow-owned continuation 9 after activation while Goal controls remained Pause/Edit/Stop. This proves the self-prompt path is executable rather than relying on bracket text alone.
 - Phase F remains incomplete until unchanged-threshold proactive rollover, real successor bootstrap/verification, lineage advance, no-duplicate successor submission, and restart recovery are observed.
+
+### Checkpoint 031 — durable manual-interruption recovery
+- Candidate runtime: `297887d37bff3d62117f1ea63447a22f2c5d17be` / SHA-256 `357CE2845515758D428B285B58B7D40E7E278A8D60FA958C076768A7A09A2770`.
+- The persistent Goal schema now carries explicit interruption state while awaiting a response, allowing manual-turn recovery to survive tab/service-worker restarts and avoiding recovery-marker misclassification races.
+- Stop-surface precedence is unchanged; bounded Loops remain fail-safe on ownership loss; the resumed prompt uses the existing atomic workflow queue transition.
+- Validation: focused interruption/runtime gate 59/59; full suite 393/393; package boundary 39 files; installed parity 39/39.
+- Authenticated activation: after one controlled Resume to clear the inherited pre-031 pause, the Goal was active and the YOLO popup exposed exactly one visible queue item labeled `managed by workflow` containing the Goal continuation.
+- This proves a real self-prompt path is armed. Full automatic manual-interruption recovery still requires a subsequent live interjection with no manual Resume; R9 remains AUTH LIVE REQUIRED.

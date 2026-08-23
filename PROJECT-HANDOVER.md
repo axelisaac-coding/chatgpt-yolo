@@ -394,3 +394,12 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - Live: checkpoint 030 loaded in Chrome and generated workflow-owned continuation 9 after activation.
 - Source ZIP SHA-256: `2C235CEA50F23989EF0BFB802FF18E2323E813419858EBDAA76E0EAE9BFD6E20`; browser ZIP SHA-256: `4A9CA84564B8E9BA2EE960A249E6E0EC16C28BDE6DBDB3A1A169CB4924516BB5`.
 - Continue naturally toward unchanged-threshold rollover; do not promote formal v1.2.0 until all Phase F successor/restart evidence is observed.
+
+## Checkpoint 031 - durable manual interruption state
+- Runtime commit: `297887d37bff3d62117f1ea63447a22f2c5d17be`; runtime digest `357CE2845515758D428B285B58B7D40E7E278A8D60FA958C076768A7A09A2770`.
+- Manual interruption is now persisted explicitly for awaiting Goals, survives restart/normalization, and clears atomically when the fresh workflow continuation is queued.
+- Provider-limit, human-required, and context-exhaustion stop surfaces still preempt interruption handling. Bounded Loops keep strict ownership-loss pausing.
+- Validation: 59/59 focused; 393/393 full; 39 packaged files; installed parity 39/39.
+- Live activation: the inherited pre-031 paused state required one controlled Resume. Afterward Goal controls were Pause/Edit/Stop and the popup showed exactly one onscreen `managed by workflow` Goal continuation queue item.
+- Exact live automatic recovery after a new manual interjection is still required; do not claim that field yet.
+- Source ZIP SHA-256: `0153D00626F83D53C8418D842A66B59C7534332197DA77B91604FA5523759776`; browser ZIP SHA-256: `F592BA99BCDA4AC0BB8846FEB48EF863C2B98217E315459EC81F2C618BD58D39`.

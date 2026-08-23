@@ -24,6 +24,7 @@ All notable changes are documented here.
 - Fixed full slash-command submission so recognized YOLO commands are intercepted at the composer form boundary instead of escaping as ordinary ChatGPT messages.
 - Fixed false ChatGPT error recovery triggered by generic red-styled authored content; recovery now requires semantic error surfaces or real Retry controls.
 - Hardened delivery receipts for multi-paragraph Goal prompts across later user messages, whitespace reflow, and collapsed-message UI chrome such as `Show more`.
+- Hardened persistent Goal recovery across manual user interjections with durable interruption state, restart-safe resumption, stop-surface precedence, and one atomic workflow-owned continuation.
 
 ## 1.1.0 - overnight reliability
 
