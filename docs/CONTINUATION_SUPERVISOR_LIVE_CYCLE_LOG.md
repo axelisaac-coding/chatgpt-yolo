@@ -18,6 +18,8 @@ Runtime under test: checkpoint 031, implementation `297887d37bff3d62117f1ea63447
 | 14 | 1 | Pause/Edit/Stop | not recorded | `3e36f2d` |
 | 15 | 1 | Pause/Edit/Stop | not recorded | `d9542a1` |
 | 16 | 1 | Pause/Edit/Stop | not recorded | `3b6a78d` |
-| 17 | 1 | Pause/Edit/Stop | not recorded | pending this commit |
+| 17 | 1 | Pause/Edit/Stop | not recorded | `0a17e49` |
+
+| 18 | 1 | Pause/Edit/Stop | not recorded | `live-cont18` |
 
 Ordinary future cycles append one factual row here. Update the larger release-evidence document only for material lifecycle milestones or defects. Do not infer queue state from an unopened popup, and do not claim rollover-specific `noDuplicateSubmission` before successor migration is observed.
