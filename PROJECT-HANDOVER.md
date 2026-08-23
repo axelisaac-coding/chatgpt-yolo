@@ -404,3 +404,8 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - Exact live automatic recovery after a new manual interjection is still required; do not claim that field yet.
 - Source ZIP SHA-256: `0153D00626F83D53C8418D842A66B59C7534332197DA77B91604FA5523759776`; browser ZIP SHA-256: `F592BA99BCDA4AC0BB8846FEB48EF863C2B98217E315459EC81F2C618BD58D39`.
 - TEST-ONLY tag `continuation-supervisor-v1.2.0-live-candidate-297887d` peels to runtime commit `297887d37bff3d62117f1ea63447a22f2c5d17be`; matching GitHub release is draft + prerelease. Formal `v1.2.0` remains blocked on full live qualification.
+
+### Checkpoint 031 live self-prompt delivery
+- The exactly one workflow-managed Goal continuation queued before the prior handoff was delivered into the saved source conversation as the current continuation 9.
+- Chrome accessibility found the current continuation-9 prompt exactly once and the live Goal strip remained Pause/Edit/Stop.
+- This proves checkpoint 031 normal self-prompt delivery after activation. The stricter manual-interruption auto-resume case still requires a fresh manual interjection with no controlled Resume afterward.

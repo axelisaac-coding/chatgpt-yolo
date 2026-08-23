@@ -158,3 +158,8 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - This proves a real self-prompt path is armed. Full automatic manual-interruption recovery still requires a subsequent live interjection with no manual Resume; R9 remains AUTH LIVE REQUIRED.
 
 - TEST-ONLY tag `continuation-supervisor-v1.2.0-live-candidate-297887d` peels to runtime commit `297887d37bff3d62117f1ea63447a22f2c5d17be`; matching GitHub release is draft + prerelease. Formal `v1.2.0` remains blocked on full live qualification.
+
+### Checkpoint 031 authenticated self-prompt delivery
+- Before the prior response ended, YOLO exposed exactly one pending queue item labeled `managed by workflow` containing the Goal continuation prompt.
+- That workflow-owned item was subsequently delivered as the current continuation 9; Chrome accessibility found the prompt exactly once and the live Goal strip remained `Pause/Edit/Stop`.
+- This demonstrates an executable checkpoint-031 self-prompt path. It does not yet prove the fresh manual-interruption auto-resume path or any successor-rollover qualification field.

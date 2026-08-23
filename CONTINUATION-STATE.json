@@ -19,7 +19,9 @@
     "continuation8QueueAfterDelivery": "No queued work",
     "manualInterruptionFocused": "59/59",
     "manualInterruptionResume": "checkpoint 031 persists manual interruption state across restarts, preserves stop-surface precedence, and resumes through the atomic workflow queue",
-    "checkpoint031LiveQueue": "after one controlled Resume to clear the inherited pre-031 pause, popup exposed exactly one onscreen workflow-managed Goal continuation item"
+    "checkpoint031LiveQueue": "after one controlled Resume to clear the inherited pre-031 pause, popup exposed exactly one onscreen workflow-managed Goal continuation item",
+    "checkpoint031DeliveredPromptVisibleCount": 1,
+    "checkpoint031SelfPromptDelivery": "the single workflow-managed Goal queue item observed before handoff was delivered as the current continuation 9; the prompt is visible exactly once and Goal controls remain Pause/Edit/Stop"
   },
   "runtimeDigestSha256": "357CE2845515758D428B285B58B7D40E7E278A8D60FA958C076768A7A09A2770",
   "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-031-manual-interruption-297887d.zip",
@@ -27,7 +29,7 @@
   "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-297887d.zip",
   "browserCandidateSha256": "F592BA99BCDA4AC0BB8846FEB48EF863C2B98217E315459EC81F2C618BD58D39",
   "liveFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
-  "liveStatus": "checkpoint 031 loaded with 39/39 parity; inherited pre-031 pause cleared once via controlled Resume; Goal active and popup shows exactly one workflow-managed continuation queued; automatic post-interruption live proof remains next",
+  "liveStatus": "checkpoint 031 loaded with 39/39 parity; inherited pre-031 pause cleared once via controlled Resume; the queued workflow-managed Goal continuation was delivered as current continuation 9 exactly once and Goal remains active; manual-interruption auto-resume without controlled Resume remains next",
   "next": "Continue Goal-owned cycles without threshold changes until natural proactive rollover; then verify semantic handoff, real New Chat successor, bootstrap receipt/verification, source retirement, lineage advance, successor Goal resume, no duplicate send, and restart recovery",
   "liveQualificationPartial": {
     "onlyCandidateLoaded": true,
