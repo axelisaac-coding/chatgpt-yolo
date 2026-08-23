@@ -134,3 +134,9 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - The toolbar popup simultaneously reported `No queued work` after delivery, providing authenticated pre-rollover evidence against a hidden duplicate pending item.
 - Goal controls remained `Pause/Edit/Stop`; runtime bytes are unchanged from checkpoint 029.
 - This does not satisfy final bootstrap `noDuplicateSubmission`; successor rollover evidence is still required.
+
+### Authenticated live continuation 8 — checkpoint 029
+- YOLO automatically generated continuation 8 on the unchanged checkpoint-029 runtime.
+- The continuation-8 workflow prompt was observed exactly once; Goal controls remained `Pause/Edit/Stop`; the YOLO popup showed `No queued work` after delivery.
+- This strengthens pre-rollover at-most-once endurance evidence only; successor bootstrap `noDuplicateSubmission` remains pending.
+- Runtime commit and digest remain unchanged.
