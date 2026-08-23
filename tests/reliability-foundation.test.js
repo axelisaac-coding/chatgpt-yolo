@@ -109,6 +109,20 @@ test('runtime reset fails closed when guard storage cannot be reset', () => {
   assert.ok(reset.indexOf('guardReset') < reset.indexOf('state.runtime = ContentState.freshRuntime()'));
 });
 
+test('unconfirmed delivery diagnostics expose only counts lengths and fingerprints', () => {
+  const content = read('content.js');
+  const start = content.indexOf('const receipt = Platforms.userMessageSnapshot');
+  const end = content.indexOf('deliveryAmbiguous: true', start);
+  const diagnostic = content.slice(start, end);
+  assert.match(diagnostic, /users=\$\{receipt\.count\}/);
+  assert.match(diagnostic, /expected=\$\{receipt\.expectedCount\}\/\$\{previousSnapshot\.expectedCount\}/);
+  assert.match(diagnostic, /latestLen=\$\{receipt\.latestText\.length\}/);
+  assert.match(diagnostic, /expectedLen=\$\{receipt\.expectedText\.length\}/);
+  assert.match(diagnostic, /Commands\.fingerprint\(receipt\.latestText\)/);
+  assert.match(diagnostic, /Commands\.fingerprint\(receipt\.expectedText\)/);
+  assert.doesNotMatch(diagnostic, /latestText}.*expectedText}/);
+});
+
 test('delivery confirmation uses a wall-clock deadline', () => {
   const content = read('content.js');
   assert.match(content, /confirmationDeadline = now\(\) \+ 15_000/);

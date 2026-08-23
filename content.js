@@ -367,10 +367,19 @@
         }
         await sleep(150);
       }
+      const receipt = Platforms.userMessageSnapshot(state.platform, document, prompt);
+      const receiptDiag = [
+        `users=${receipt.count}`,
+        `expected=${receipt.expectedCount}/${previousSnapshot.expectedCount}`,
+        `latestLen=${receipt.latestText.length}`,
+        `expectedLen=${receipt.expectedText.length}`,
+        `latestFp=${Commands.fingerprint(receipt.latestText).slice(0, 12)}`,
+        `expectedFp=${Commands.fingerprint(receipt.expectedText).slice(0, 12)}`
+      ].join(" " );
       return {
         ok: false,
         code: "composer.unconfirmed",
-        reason: "The matching user message did not appear in the conversation",
+        reason: `The matching user message did not appear in the conversation [${receiptDiag}]`,
         deliveryAmbiguous: true
       };
     } catch (error) {
