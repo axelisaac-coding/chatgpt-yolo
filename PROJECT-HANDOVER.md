@@ -380,3 +380,9 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - `savedSourceConversation`: observed true. Chrome address bar shows the authenticated source on durable route `/c/6a893c91-5800-83e8-ae86-b8dd3f1eed98` inside the YOLO Fork project.
 - YOLO automatically reached continuation 4 and remained active with Pause/Edit/Stop controls.
 - These are partial live observations only; Phase F remains incomplete until proactive rollover and successor/restart evidence are observed.
+
+### Never-idle self-prompt invariant
+- Before any assistant/tool window ends while this Goal remains incomplete, preserve an automatic path to the next cycle.
+- Primary path: end the active Goal cycle with `[YOLO:CONTINUE]` so the workflow owns the next prompt.
+- Backup path: only if no workflow-owned prompt is pending and the YOLO queue is empty, add exactly one ordinary continuation item; never create a competing duplicate.
+- Verify the next prompt path exists before treating a cycle as safely handed off.
