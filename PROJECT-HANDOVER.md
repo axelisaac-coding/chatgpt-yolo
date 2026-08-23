@@ -409,3 +409,6 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - The exactly one workflow-managed Goal continuation queued before the prior handoff was delivered into the saved source conversation as the current continuation 9.
 - Chrome accessibility found the current continuation-9 prompt exactly once and the live Goal strip remained Pause/Edit/Stop.
 - This proves checkpoint 031 normal self-prompt delivery after activation. The stricter manual-interruption auto-resume case still requires a fresh manual interjection with no controlled Resume afterward.
+
+### Compact live-cycle ledger
+- Ordinary authenticated Goal endurance cycles are recorded in `docs/CONTINUATION_SUPERVISOR_LIVE_CYCLE_LOG.md`; reserve the larger release-evidence document for material lifecycle milestones or defects.

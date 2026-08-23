@@ -10,7 +10,7 @@
     "focusedAuthoredReceipt": "34/34",
     "runtimeFiles": 39,
     "liveFolderParity": "39/39",
-    "automaticGoalContinuationObservedThrough": 16,
+    "automaticGoalContinuationObservedThrough": 17,
     "continuation5PromptVisibleCount": 1,
     "preRolloverDuplicateSafety": "continuation 8 workflow prompt observed exactly once and popup showed No queued work after delivery; final bootstrap noDuplicateSubmission still pending",
     "continuation6PromptVisibleCount": 1,
@@ -38,7 +38,9 @@
     "continuation15GoalControls": "Pause/Edit/Stop",
     "continuation16PromptVisibleCount": 1,
     "continuation16GoalControls": "Pause/Edit/Stop",
-    "durableFallbackRemainingAtContinuation16": 124
+    "durableFallbackRemainingAtContinuation16": 124,
+    "continuation17PromptVisibleCount": 1,
+    "continuation17GoalControls": "Pause/Edit/Stop"
   },
   "runtimeDigestSha256": "357CE2845515758D428B285B58B7D40E7E278A8D60FA958C076768A7A09A2770",
   "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-031-manual-interruption-297887d.zip",
@@ -46,7 +48,7 @@
   "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-297887d.zip",
   "browserCandidateSha256": "F592BA99BCDA4AC0BB8846FEB48EF863C2B98217E315459EC81F2C618BD58D39",
   "liveFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
-  "liveStatus": "checkpoint 031 unchanged; automatic Goal continuation observed through continuation 16; continuation-16 prompt visible exactly once; Goal active; durable-continuation fallback remains 124 cycles away if no earlier observable-growth trigger fires",
+  "liveStatus": "checkpoint 031 unchanged; automatic Goal continuation observed through continuation 17; continuation-17 prompt visible exactly once and Goal active; unchanged-threshold rollover remains pending",
   "next": "Continue Goal-owned cycles without threshold changes until natural proactive rollover; then verify semantic handoff, real New Chat successor, bootstrap receipt/verification, source retirement, lineage advance, successor Goal resume, no duplicate send, and restart recovery",
   "liveQualificationPartial": {
     "onlyCandidateLoaded": true,
@@ -54,5 +56,7 @@
   },
   "testOnlyTag": "continuation-supervisor-v1.2.0-live-candidate-297887d",
   "testOnlyTagCommit": "297887d37bff3d62117f1ea63447a22f2c5d17be",
-  "draftPrereleaseUrl": "https://github.com/axelisaac-coding/chatgpt-yolo/releases/tag/untagged-8638df6a4ad7cfaea3d4"
+  "draftPrereleaseUrl": "https://github.com/axelisaac-coding/chatgpt-yolo/releases/tag/untagged-8638df6a4ad7cfaea3d4",
+  "liveCycleLog": "docs/CONTINUATION_SUPERVISOR_LIVE_CYCLE_LOG.md",
+  "liveCycleEvidencePolicy": "ordinary endurance cycles append to the compact live-cycle log; release evidence is updated for material lifecycle milestones or defects"
 }
