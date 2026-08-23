@@ -140,3 +140,11 @@ Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-
 - The continuation-8 workflow prompt was observed exactly once; Goal controls remained `Pause/Edit/Stop`; the YOLO popup showed `No queued work` after delivery.
 - This strengthens pre-rollover at-most-once endurance evidence only; successor bootstrap `noDuplicateSubmission` remains pending.
 - Runtime commit and digest remain unchanged.
+### Checkpoint 030 — manual interjection self-resume
+- Runtime commit: `fab488b125207a424992d70d46ff0d96dac05167`.
+- Root cause: a manual user turn changed the latest user fingerprint, so persistent Goal response ownership was treated as lost and the Goal paused; later `[YOLO:CONTINUE]` text was inert because no workflow was awaiting it.
+- Fix: persistent Goals treat an unrelated manual turn as a transient interruption. The unrelated assistant response is not counted as Goal progress; after it settles, YOLO queues a fresh workflow-owned continuation. Bounded Loop workflows retain fail-safe pause-on-ownership-loss behavior.
+- Validation: focused commands/runtime gate 57/57; full suite 391/391; 39 packaged runtime files; syntax, package, no-bare-installs, asset validation, and diff integrity pass.
+- Runtime SHA-256: `A2609836E00AC0453A6D5AEAE6A98A4A54600EB23B9E5619BBBAE59D7A794AAC`.
+- Authenticated live evidence: checkpoint 030 was mirrored with 39/39 exact parity, reloaded in Chrome, and YOLO generated a real workflow-owned continuation 9 after activation while Goal controls remained Pause/Edit/Stop. This proves the self-prompt path is executable rather than relying on bracket text alone.
+- Phase F remains incomplete until unchanged-threshold proactive rollover, real successor bootstrap/verification, lineage advance, no-duplicate successor submission, and restart recovery are observed.

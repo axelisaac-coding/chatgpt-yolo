@@ -386,3 +386,11 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - Primary path: end the active Goal cycle with `[YOLO:CONTINUE]` so the workflow owns the next prompt.
 - Backup path: only if no workflow-owned prompt is pending and the YOLO queue is empty, add exactly one ordinary continuation item; never create a competing duplicate.
 - Verify the next prompt path exists before treating a cycle as safely handed off.
+## Checkpoint 030 — persistent Goal manual-turn self-resume
+- Runtime commit: `fab488b125207a424992d70d46ff0d96dac05167`; runtime digest `A2609836E00AC0453A6D5AEAE6A98A4A54600EB23B9E5619BBBAE59D7A794AAC`.
+- Manual user messages no longer permanently pause a persistent Goal for ownership loss. Their assistant response is treated as unrelated to Goal progress and YOLO queues a fresh Goal-owned continuation after it settles.
+- Bounded Loop ownership behavior is intentionally unchanged and remains fail-safe.
+- Validation: 57/57 focused; 391/391 full; 39 packaged runtime files; installed-folder parity 39/39.
+- Live: checkpoint 030 loaded in Chrome and generated workflow-owned continuation 9 after activation.
+- Source ZIP SHA-256: `2C235CEA50F23989EF0BFB802FF18E2323E813419858EBDAA76E0EAE9BFD6E20`; browser ZIP SHA-256: `4A9CA84564B8E9BA2EE960A249E6E0EC16C28BDE6DBDB3A1A169CB4924516BB5`.
+- Continue naturally toward unchanged-threshold rollover; do not promote formal v1.2.0 until all Phase F successor/restart evidence is observed.
