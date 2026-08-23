@@ -38,6 +38,28 @@ test("resuming a verification-pending workflow preserves verification phase", ()
   }
 });
 
+test("manual Goal interruption is durable, stop-safe, and resumes through the atomic queue", () => {
+  const helper = source.slice(source.indexOf("async function handleManualGoalInterruption"), source.indexOf("async function handleWorkflow"));
+  assert.match(helper, /manualInterruptionPending = true/);
+  assert.match(helper, /manualInterruptionSawGeneration = true/);
+  assert.match(helper, /Lifecycle\.responseStableMs\("continue"\)/);
+  assert.match(helper, /Commands\.workflowPrompt\(current, "continue"\)/);
+  assert.match(helper, /queuePrompt\(prompt, \{ workflow: current, source: "workflow:goal" \}\)/);
+  assert.doesNotMatch(helper, /state\.workflow = (next|current)/);
+
+  const handler = source.slice(source.indexOf("async function handleWorkflow"), source.indexOf("async function tick"));
+  const stop = handler.indexOf("Platforms.workflowStopState");
+  const interruption = handler.indexOf("handleManualGoalInterruption");
+  const generation = handler.indexOf("if (apiState.generating)");
+  assert.ok(stop >= 0 && interruption > stop && generation > interruption);
+
+  const queue = source.slice(source.indexOf("async function queuePrompt"), source.indexOf("async function cancelPendingWorkflowPrompt"));
+  assert.match(queue, /next\.manualInterruptionPending = false/);
+  assert.match(queue, /next\.manualInterruptionUserFingerprint = ""/);
+  assert.match(queue, /next\.manualInterruptionAt = 0/);
+  assert.match(queue, /next\.manualInterruptionSawGeneration = false/);
+});
+
 test("provider and human stop surfaces preempt generation and response recovery", () => {
   const handler = source.slice(source.indexOf("async function handleWorkflow"), source.indexOf("async function tick"));
   const stop = handler.indexOf("Platforms.workflowStopState");

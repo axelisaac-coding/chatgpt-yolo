@@ -220,6 +220,10 @@
       promptFingerprint: "",
       responseCandidateFingerprint: "",
       responseCandidateSince: 0,
+      manualInterruptionPending: false,
+      manualInterruptionUserFingerprint: "",
+      manualInterruptionAt: 0,
+      manualInterruptionSawGeneration: false,
       runnerId: "",
       runnerExpiresAt: 0,
       lastPromptAt: 0,
@@ -266,6 +270,10 @@
       promptFingerprint: cleanText(raw.promptFingerprint, 180),
       responseCandidateFingerprint: Boolean(raw.awaitingResponse) ? cleanText(raw.responseCandidateFingerprint, 180) : "",
       responseCandidateSince: Boolean(raw.awaitingResponse) ? Math.max(0, finite(raw.responseCandidateSince, 0)) : 0,
+      manualInterruptionPending: kind === "goal" && Boolean(raw.awaitingResponse) && Boolean(raw.manualInterruptionPending),
+      manualInterruptionUserFingerprint: kind === "goal" && Boolean(raw.awaitingResponse) && Boolean(raw.manualInterruptionPending) ? cleanText(raw.manualInterruptionUserFingerprint, 180) : "",
+      manualInterruptionAt: kind === "goal" && Boolean(raw.awaitingResponse) && Boolean(raw.manualInterruptionPending) ? Math.max(0, finite(raw.manualInterruptionAt, 0)) : 0,
+      manualInterruptionSawGeneration: kind === "goal" && Boolean(raw.awaitingResponse) && Boolean(raw.manualInterruptionPending) && Boolean(raw.manualInterruptionSawGeneration),
       runnerId: status === "running" ? cleanText(raw.runnerId, 220) : "",
       runnerExpiresAt: status === "running" ? Math.max(0, finite(raw.runnerExpiresAt, 0)) : 0,
       lastPromptAt: Math.max(0, finite(raw.lastPromptAt, 0)),
@@ -310,6 +318,10 @@
       workflow.sawGeneration = false;
       workflow.responseCandidateFingerprint = "";
       workflow.responseCandidateSince = 0;
+      workflow.manualInterruptionPending = false;
+      workflow.manualInterruptionUserFingerprint = "";
+      workflow.manualInterruptionAt = 0;
+      workflow.manualInterruptionSawGeneration = false;
       workflow.runnerId = "";
       workflow.runnerExpiresAt = 0;
     }

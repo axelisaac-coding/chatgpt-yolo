@@ -315,6 +315,10 @@
       next.sawGeneration = false;
       next.responseCandidateFingerprint = "";
       next.responseCandidateSince = 0;
+      next.manualInterruptionPending = false;
+      next.manualInterruptionUserFingerprint = "";
+      next.manualInterruptionAt = 0;
+      next.manualInterruptionSawGeneration = false;
       next.baselineFingerprint = latestAssistantFingerprint();
       next.lastAssistantFingerprint = next.baselineFingerprint;
       next.promptFingerprint = Commands.fingerprint(prompt);
@@ -930,6 +934,59 @@
     return false;
   }
 
+  async function handleManualGoalInterruption(workflow, apiState) {
+    if (workflow.kind !== "goal" || !workflow.awaitingResponse || !workflow.promptFingerprint) return false;
+    const userFingerprint = latestUserFingerprint();
+    if (!userFingerprint || userFingerprint === workflow.promptFingerprint) return false;
+
+    const next = Commands.normalizeWorkflow(workflow);
+    if (!next.manualInterruptionPending || next.manualInterruptionUserFingerprint !== userFingerprint) {
+      next.manualInterruptionPending = true;
+      next.manualInterruptionUserFingerprint = userFingerprint;
+      next.manualInterruptionAt = now();
+      next.manualInterruptionSawGeneration = false;
+      next.responseCandidateFingerprint = "";
+      next.responseCandidateSince = 0;
+      next.reason = "Manual conversation turn interrupted the persistent Goal";
+      next.updatedAt = now();
+      if (!await writeWorkflow(next)) return true;
+    }
+
+    const current = Commands.normalizeWorkflow(state.workflow);
+    if (apiState.generating) {
+      if (!current.manualInterruptionSawGeneration || current.responseCandidateFingerprint) {
+        current.manualInterruptionSawGeneration = true;
+        current.responseCandidateFingerprint = "";
+        current.responseCandidateSince = 0;
+        current.reason = "Waiting for the manual conversation turn to finish";
+        current.updatedAt = now();
+        await writeWorkflow(current);
+      }
+      return true;
+    }
+
+    if (!current.manualInterruptionSawGeneration) return true;
+    const assistantText = Platforms.latestAssistantText(adapter());
+    const candidateFingerprint = Commands.fingerprint(assistantText);
+    if (!assistantText || candidateFingerprint === current.lastAssistantFingerprint) return true;
+    if (current.responseCandidateFingerprint !== candidateFingerprint) {
+      current.responseCandidateFingerprint = candidateFingerprint;
+      current.responseCandidateSince = now();
+      current.reason = "Waiting for the manual conversation response to settle";
+      current.updatedAt = now();
+      await writeWorkflow(current);
+      return true;
+    }
+    const quietSince = Math.max(current.responseCandidateSince, apiState.lastDomActivityAt || 0, apiState.lastGenerationAt || 0);
+    if (now() - quietSince < Lifecycle.responseStableMs("continue")) return true;
+
+    const prompt = Commands.workflowPrompt(current, "continue");
+    const queued = await queuePrompt(prompt, { workflow: current, source: "workflow:goal" });
+    if (!queued.ok) await markWorkflow("blocked", queued.reason || "Could not resume the Goal after a manual conversation turn", "command.workflow.interruption_queue_failed");
+    else await record("Manual conversation turn completed; resumed the persistent Goal", "info", "command.workflow.interruption_resumed");
+    return true;
+  }
+
   async function handleWorkflow() {
     if (Commands.normalizeWorkflow(state.workflow).status !== "running") return false;
     if (!await claimWorkflow()) return false;
@@ -949,6 +1006,8 @@
       if (marked && stopState.status === "rollover_required") await handleRollover();
       return true;
     }
+
+    if (await handleManualGoalInterruption(Commands.normalizeWorkflow(state.workflow), apiState)) return true;
 
     if (apiState.generating) {
       if (!workflow.sawGeneration || workflow.responseCandidateFingerprint) {

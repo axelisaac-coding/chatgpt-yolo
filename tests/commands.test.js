@@ -152,6 +152,28 @@ test("persistent goals resume after a manual conversation turn without counting 
   assert.equal(decision.workflow.responseCandidateSince, 0);
   assert.equal(decision.workflow.lastAssistantFingerprint, Commands.fingerprint(text));
 });
+test("manual interruption state persists only for awaiting Goals and clears on stop", () => {
+  const goal = Commands.normalizeWorkflow({
+    kind: "goal", objective: "ship", status: "running", awaitingResponse: true, promptFingerprint: "owned",
+    manualInterruptionPending: true, manualInterruptionUserFingerprint: "manual", manualInterruptionAt: 1234, manualInterruptionSawGeneration: true
+  }, 2000);
+  assert.equal(goal.manualInterruptionPending, true);
+  assert.equal(goal.manualInterruptionUserFingerprint, "manual");
+  assert.equal(goal.manualInterruptionAt, 1234);
+  assert.equal(goal.manualInterruptionSawGeneration, true);
+
+  const paused = Commands.setWorkflowStatus(goal, "paused", "manual pause", 3000);
+  assert.equal(paused.manualInterruptionPending, false);
+  assert.equal(paused.manualInterruptionUserFingerprint, "");
+  assert.equal(paused.manualInterruptionAt, 0);
+  assert.equal(paused.manualInterruptionSawGeneration, false);
+
+  const loop = Commands.normalizeWorkflow({ ...goal, kind: "loop", manualInterruptionPending: true }, 2000);
+  assert.equal(loop.manualInterruptionPending, false);
+  const notAwaiting = Commands.normalizeWorkflow({ ...goal, awaitingResponse: false, manualInterruptionPending: true }, 2000);
+  assert.equal(notAwaiting.manualInterruptionPending, false);
+});
+
 test("awaiting workflows retain and clear response stability candidates safely", () => {
   const waiting = Commands.normalizeWorkflow({
     kind: "loop",
