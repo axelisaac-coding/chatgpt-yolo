@@ -94,3 +94,12 @@ This is automated remediation evidence only. R9 remains **AUTH LIVE REQUIRED** u
 - Validation: 385/385 full suite; 30/30 focused receipt tests; 39 packaged files; installed live folder exact parity.
 - Authenticated observation after reload: blocked Goal resumed and emitted a new workflow-owned Goal prompt in the saved ChatGPT conversation.
 - R9 remains `AUTH LIVE REQUIRED`; no successor-chat PASS is claimed yet.
+
+### Authenticated live attempt - checkpoint 027 receipt canonicalization
+This is blocker/fix evidence only, not an R9 live PASS.
+
+Observed: authenticated one-line queue delivery had passed, but multi-paragraph Goal prompts were visibly delivered and then classified delivery-unknown. ChatGPT may re-render paragraph/newline topology differently from composer text. Checkpoint 027 changes receipt-only comparison to collapse whitespace topology while preserving exact non-whitespace character order. A changed YOLO control marker remains a mismatch, and older identical prompts are not reused.
+
+Checkpoint 026 additionally removed generic red CSS classes from ChatGPT error detection after repeated false recovery activity was observed without a real Retry/error surface.
+
+Current runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`; runtime SHA-256: `638466DC127AA11A3A83442C4B1F6DBDAF7FD888AAE5521F982C91F528A539CB`; full suite 387/387; focused receipt gate 32/32; 39 packaged files. Live PASS remains pending post-reload authenticated rollover qualification.

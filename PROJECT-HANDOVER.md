@@ -355,3 +355,13 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - After Chrome reload, the previously blocked authenticated Goal was resumed through the visible Resume control.
 - A new workflow-owned Goal prompt was visibly delivered in the same saved `/c/...` conversation, proving checkpoint 025 can restart the Goal loop after the prior false block.
 - Phase F is still not passed: proactive rollover, real successor binding/bootstrap verification, lineage advance, successor Goal resume, duplicate prevention, and restart recovery must still be observed on this exact runtime.
+
+## Checkpoint 027 - live receipt whitespace canonicalization
+- Runtime commit: `6745cfd392d0e69d838be018172b6a4b0006e9cf`.
+- Live evidence: one-line authenticated queue receipt had passed, while multi-paragraph Goal prompts repeatedly delivered visibly but failed exact receipt confirmation.
+- Root cause narrowed to receipt-only text canonicalization preserving paragraph/newline topology that ChatGPT may re-render differently.
+- Fix: receipt identity now collapses whitespace topology only; all non-whitespace characters and control markers must still match exactly. Older identical prompts still cannot be reused.
+- Also carries checkpoint 026 error-surface hardening: generic red CSS is not treated as a ChatGPT error surface.
+- Validation: 387/387 full suite; 32/32 focused receipt tests; 39 runtime files; full release gates pass.
+- Runtime SHA-256: `638466DC127AA11A3A83442C4B1F6DBDAF7FD888AAE5521F982C91F528A539CB`.
+- Installed unpacked folder is exact 39/39 parity; browser Reload is required before the next live Goal receipt test.
