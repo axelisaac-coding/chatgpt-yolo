@@ -348,3 +348,10 @@ Exact next action: Reload the installed unpacked extension (same live folder), r
 - Real authenticated ChatGPT composer accepted the checkpoint-024 command interception fix: `/goal <objective>` did not pass through as an ordinary user command.
 - YOLO created the Goal workflow and delivered its generated marker-driven Goal prompt into the saved source conversation.
 - This verifies command start only; proactive handoff, New Chat, successor bootstrap/binding, lineage advance, and restart recovery remain pending live evidence.
+
+## 2026-08-22 — Checkpoint 025 live resume evidence
+- Runtime commit `5cf422ac0c763c0067d08b374863db2c04bef871` fixes the false delivery-unknown race by counting exact expected prompt occurrences across the submit boundary.
+- Full gate: 385/385; focused receipt race gate: 30/30; packaged runtime: 39 files; live-folder parity: 39/39 with zero mismatches.
+- After Chrome reload, the previously blocked authenticated Goal was resumed through the visible Resume control.
+- A new workflow-owned Goal prompt was visibly delivered in the same saved `/c/...` conversation, proving checkpoint 025 can restart the Goal loop after the prior false block.
+- Phase F is still not passed: proactive rollover, real successor binding/bootstrap verification, lineage advance, successor Goal resume, duplicate prevention, and restart recovery must still be observed on this exact runtime.

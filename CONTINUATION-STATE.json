@@ -1,22 +1,22 @@
 {
   "branch": "continuation-supervisor-development",
-  "checkpoint": 24,
-  "implementationCommit": "9660785ff423471696866fada0046aef6b0a2687",
-  "phaseCompleted": "G hardening + Phase F live blocker fix 2",
-  "phaseNext": "F live retest",
+  "checkpoint": 25,
+  "implementationCommit": "5cf422ac0c763c0067d08b374863db2c04bef871",
+  "phaseCompleted": "G hardening + Phase F live blocker fix 3",
+  "phaseNext": "F authenticated rollover continuation",
   "progressPercent": 99,
   "validation": {
-    "tests": "383/383",
-    "focusedLiveDefect": "91/91",
+    "tests": "385/385",
+    "focusedReceiptRace": "30/30",
     "runtimeFiles": 39,
-    "archiveParity": "39/39"
+    "liveFolderParity": "39/39"
   },
-  "runtimeDigestSha256": "83AF4B14DEBEDF560D38137A46E0073826E8888B85D0565D7FB863C9450230E1",
-  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-024-v1.2.0-command-submit-fix-9660785.zip",
-  "sourceSha256": "754826E197D4644FC3D4F91C081BF0074742E1A078EDD9E90EBA6C9C14D6B0E7",
-  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-v1.2.0-9660785.zip",
-  "browserCandidateSha256": "380E7CA9649A4DDEE32958DDF160FCA2194305E2F5563D09386B6756BD56B863",
+  "runtimeDigestSha256": "5E8C8BBCBFCFA1A65B994BD54CCF3BB340331A1B9450B75D723FC94CF16D6C06",
+  "sourceCheckpoint": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-checkpoint-025-receipt-race-5cf422a.zip",
+  "sourceSha256": "68D33333020797D8D76E3009C99E673AB5E2281E362363A86F43208B686ECE9A",
+  "browserCandidate": "C:\\Users\\user\\ChatGPT-Continuation-Supervisor\\checkpoints\\Continuation-Supervisor-browser-candidate-5cf422a.zip",
+  "browserCandidateSha256": "5D7EF630A0ECC57F33836295D2D7C100D26F79C76190872EE5A3816148F9B76A",
   "liveFolder": "C:\\Users\\user\\Desktop\\Yolo Handover\\Checkpoint022-Live-v1.2.0-57fba57",
-  "liveStatus": "folder refreshed to checkpoint 024; browser extension Reload required before slash-command retest",
-  "next": "Reload extension, refresh saved chat, retry the full /goal command, then continue digest-bound Phase F rollover qualification"
+  "liveStatus": "checkpoint 025 reloaded; blocked Goal resumed; new workflow-owned Goal prompt visibly delivered in authenticated saved conversation",
+  "next": "Allow Goal-owned CONTINUE cycles to advance naturally toward unchanged proactive rollover threshold, then verify real New Chat successor, bootstrap receipt, lineage advance, Goal resume, and restart recovery"
 }

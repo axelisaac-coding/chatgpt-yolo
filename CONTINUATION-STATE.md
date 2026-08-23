@@ -4,26 +4,20 @@ Branch: `continuation-supervisor-development`
 Repo: `C:\Users\user\ChatGPT-Continuation-Supervisor\chatgpt-yolo`
 Checkpoints: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints`
 
-## Resume protocol
-1. Fetch; inspect HEAD/status/diff. Never reset newer work.
-2. Read this file and the newest tail of `PROJECT-HANDOVER.md`.
-3. Continue the exact unfinished phase; do not repeat settled audits.
-4. Before stopping: validate, update repo state, commit/push, checkpoint.
-
 ## Current state
-Checkpoint 024 / corrected v1.2.0 live-test runtime commit: `9660785ff423471696866fada0046aef6b0a2687`.
-Phase F attempt 2 exposed a user-facing command-submission gap: a complete `/goal ...` line could reach ChatGPT as an ordinary message instead of starting YOLO. The command UI now intercepts recognized slash commands at the composer form `submit` boundary as well as capture-phase keydown, while non-YOLO messages pass through unchanged.
-Validation: full suite 383/383; focused command/runtime gate 91/91; 39 packaged runtime files; syntax, package, no-bare-installs, asset validation, and diff integrity pass.
-Canonical packaged-runtime digest: `83AF4B14DEBEDF560D38137A46E0073826E8888B85D0565D7FB863C9450230E1`.
-Overall estimate: ~99%; authenticated current-site rollover qualification remains the substantive release blocker.
+Checkpoint 025 corrected v1.2.0 live runtime commit: `5cf422ac0c763c0067d08b374863db2c04bef871`.
+Phase F live attempt exposed a receipt race: an exact workflow prompt could be delivered, then masked by a later user message before polling observed it, causing false delivery-unknown. The receipt snapshot now counts exact expected-message occurrences before and after submit, while still rejecting reuse of older identical prompts.
+Validation: full suite 385/385; focused receipt gate 30/30; 39 packaged runtime files; syntax, package, no-bare-installs, asset validation, and diff integrity pass.
+Canonical runtime digest: `5E8C8BBCBFCFA1A65B994BD54CCF3BB340331A1B9450B75D723FC94CF16D6C06`.
+Authenticated live state: checkpoint 025 was reloaded, the previously blocked Goal was resumed, and a new workflow-owned Goal prompt is visibly present in the saved ChatGPT conversation.
+Overall estimate: ~99%; real proactive rollover and successor qualification remain the substantive release blocker.
 
-## Checkpoint 024 artifacts
-Source: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-checkpoint-024-v1.2.0-command-submit-fix-9660785.zip`
-Source SHA-256: `754826E197D4644FC3D4F91C081BF0074742E1A078EDD9E90EBA6C9C14D6B0E7`
-Browser: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-browser-candidate-v1.2.0-9660785.zip`
-Browser SHA-256: `380E7CA9649A4DDEE32958DDF160FCA2194305E2F5563D09386B6756BD56B863`
-Archive verification: 39/39 files, missing 0, extra 0, hash mismatch 0.
-Installed Chrome folder `C:\Users\user\Desktop\Yolo Handover\Checkpoint022-Live-v1.2.0-57fba57` is refreshed in place to exact checkpoint-024 parity; Chrome must Reload the unpacked extension before retest.
+## Checkpoint 025 artifacts
+Source: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-checkpoint-025-receipt-race-5cf422a.zip`
+Source SHA-256: `68D33333020797D8D76E3009C99E673AB5E2281E362363A86F43208B686ECE9A`
+Browser: `C:\Users\user\ChatGPT-Continuation-Supervisor\checkpoints\Continuation-Supervisor-browser-candidate-5cf422a.zip`
+Browser SHA-256: `5D7EF630A0ECC57F33836295D2D7C100D26F79C76190872EE5A3816148F9B76A`
+Installed live folder parity: 39 files, missing 0, extra 0, hash mismatch 0.
 
 ## Exact next work
-Reload the installed unpacked extension and refresh the authenticated saved ChatGPT conversation. Retry the exact `/goal ...` live qualification command. It must be intercepted rather than posted as an ordinary message, then continue Phase F through proactive handoff -> real New Chat -> durable successor -> exact bootstrap receipt -> token verification -> lineage advance -> successor Goal resume -> restart recovery.
+End each productive Goal response with one progress marker and `[YOLO:CONTINUE]`. Let the unchanged proactive policy trigger naturally. Then observe semantic handoff, actual ChatGPT New Chat control, durable successor `/c/...`, exact bootstrap receipt, token verification, source retirement, lineage advance, successor Goal resume, no duplicate send, and restart recovery. Only observed evidence may populate the live receipt.

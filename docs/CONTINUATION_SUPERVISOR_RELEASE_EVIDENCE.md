@@ -86,3 +86,11 @@ This is automated remediation evidence only. R9 remains **AUTH LIVE REQUIRED** u
 - `/goal <objective>` was intercepted and converted into the generated persistent Goal prompt; it did not fall through as the slash command itself.
 - The generated Goal prompt is visible in the saved source conversation and the workflow is active.
 - R6/R7/R8/R9 remain not fully qualified until the real proactive rollover and successor lifecycle complete.
+
+## Live qualification update — checkpoint 025
+- Live blocker 3 reproduced: workflow prompt delivery could be falsely classified unknown if a later user message became newest before receipt polling observed the expected prompt.
+- Fix commit: `5cf422ac0c763c0067d08b374863db2c04bef871`; exact packaged runtime digest `5E8C8BBCBFCFA1A65B994BD54CCF3BB340331A1B9450B75D723FC94CF16D6C06`.
+- Safety property preserved: receipt requires an increase in the exact expected prompt occurrence count, so an older identical message cannot satisfy a new submit.
+- Validation: 385/385 full suite; 30/30 focused receipt tests; 39 packaged files; installed live folder exact parity.
+- Authenticated observation after reload: blocked Goal resumed and emitted a new workflow-owned Goal prompt in the saved ChatGPT conversation.
+- R9 remains `AUTH LIVE REQUIRED`; no successor-chat PASS is claimed yet.
