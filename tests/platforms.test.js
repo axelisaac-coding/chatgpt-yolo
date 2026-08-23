@@ -83,6 +83,27 @@ test("selects platform adapters only for supported hosts", () => {
   assert.equal(Platforms.adapterForLocation({ hostname: "example.com" }), null);
 });
 
+test("ChatGPT error detection ignores generic red text and keeps semantic error surfaces", () => {
+  assert.deepEqual(Platforms.ADAPTERS.chatgpt.errorSelectors, ["[role='alert']", "[data-testid*='error' i]"]);
+  const view = { getComputedStyle: () => ({ visibility: "visible", display: "block", opacity: "1" }) };
+  const ownerDocument = { defaultView: view };
+  const surface = (text) => ({
+    nodeType: 1,
+    ownerDocument,
+    textContent: text,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 300, height: 40, right: 300, bottom: 40 })
+  });
+  const authoredRedText = surface("retry failed error");
+  const selectors = [];
+  const authoredDoc = { querySelectorAll(selector) { selectors.push(selector); return selector === ".text-red-500" ? [authoredRedText] : []; } };
+  assert.equal(Platforms.findErrorState(Platforms.ADAPTERS.chatgpt, authoredDoc), null);
+  assert.equal(selectors.includes(".text-red-500"), false);
+
+  const alert = surface("Something went wrong. Try again.");
+  const alertDoc = { querySelectorAll(selector) { return selector === "[role='alert']" ? [alert] : []; } };
+  assert.equal(Platforms.findErrorState(Platforms.ADAPTERS.chatgpt, alertDoc), alert);
+});
+
 test("fixture-based approval detection respects every risk policy", () => {
   for (const fixture of fixtures) {
     const documentLike = createFixtureDocument(fixture);

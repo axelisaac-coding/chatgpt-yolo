@@ -51,11 +51,7 @@
       ],
       errorSelectors: [
         "[role='alert']",
-        "[data-testid*='error' i]",
-        ".text-red-500",
-        ".text-red-600",
-        ".border-red-500",
-        ".border-red-600"
+        "[data-testid*='error' i]"
       ],
       assistantSelectors: [
         "[data-message-author-role='assistant']",
